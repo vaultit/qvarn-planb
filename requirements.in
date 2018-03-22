@@ -1,0 +1,4 @@
+aiopg
+apistar[asyncio]
+ruamel.yaml
+sqlalchemy

@@ -1,4 +1,5 @@
 *.egg-info/
 *.pyc
 /.eggs/
+/.pytest_cache/
 /env/
