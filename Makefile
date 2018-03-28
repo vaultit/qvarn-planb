@@ -20,7 +20,7 @@ requirements.txt: env/bin/pip-compile requirements.in
 
 .PHONY: run
 run: env
-	env/bin/apistar run
+	env/bin/qvarn run
 
 .PHONY: test
 test: env

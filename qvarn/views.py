@@ -12,7 +12,12 @@ from qvarn.exceptions import NotFound
 
 async def auth_token(headers: http.Headers, body: http.Body, settings: Settings):
     """
-    Proxy /auth/token requests to Gluu.
+    Simple proxy to Gluu.
+
+    Example:
+
+        http -f -a user:secret post /auth/token grant_type=client_credentials scope=uapi_persons_get
+
     """
     async with aiohttp.ClientSession() as session:
         endpoint = urllib.parse.urljoin(settings['QVARN']['TOKEN_ISSUER'], 'oxauth/.well-known/openid-configuration')

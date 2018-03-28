@@ -12,6 +12,7 @@ from apistar import Route
 from apistar import http
 from apistar.frameworks.asyncio import ASyncIOApp
 from apistar.handlers import docs_urls
+from apistar.handlers import static_urls
 from uvicorn.run import UvicornServer
 
 from qvarn import backends
@@ -60,6 +61,7 @@ class App(ASyncIOApp):
 
 async def get_app(initdb=True):
     settings = {
+        'DEBUG': True,
         'AUTHENTICATION': [],
         'QVARN': {
             'BACKEND': 'postgresql',
@@ -67,18 +69,25 @@ async def get_app(initdb=True):
             'TOKEN_ISSUER': 'https://auth-jsonb.alpha.vaultit.org',
             'TOKEN_AUDIENCE': 'http://localhost:8080',
             'TOKEN_SIGNING_KEY': (
-                'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLDDFzdeGRZB1EOCWObzmjT34pLhLrSoU4WGu3u0IDhbaQleTQ6hTDj27DkFg20Qux8P'
-                'XxcXjxzJXq+ycQDOfDP5ET+/JVeFgPxlX7aQHWyi7g5kY4LNk5AiY6/F1lD/3j4jrdMbhGDfkm44o/ow52q+mU9bnciEeISn1EjoDMH4gg'
-                'k9gzZJDod6fTBwe+tkBETMMG08M9/5jgO4OE3lHBYF60EdMrSQ2kVRvUAOjmXGUyycn80g1BTAwy0SYX01MfGVgfGsSYJ/LKfbtXd5AXjm'
-                'DXSC3SOsjf/9MdCZ07gNmDzqmyr4yVRJSfYdIn1Prw4BH+seVZmSQqapZ5D2hp'
+                'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLDDFzdeGRZB1EOCWObzmjT34pLhLrSoU4WGu3u0IDhbaQleTQ6hTDj27DkFg20Q'
+                'ux8PXxcXjxzJXq+ycQDOfDP5ET+/JVeFgPxlX7aQHWyi7g5kY4LNk5AiY6/F1lD/3j4jrdMbhGDfkm44o/ow52q+mU9bnciEeISn1E'
+                'joDMH4ggk9gzZJDod6fTBwe+tkBETMMG08M9/5jgO4OE3lHBYF60EdMrSQ2kVRvUAOjmXGUyycn80g1BTAwy0SYX01MfGVgfGsSYJ/'
+                'LKfbtXd5AXjmDXSC3SOsjf/9MdCZ07gNmDzqmyr4yVRJSfYdIn1Prw4BH+seVZmSQqapZ5D2hp'
             ),
         },
     }
     settings['AUTHENTICATION'] += [BearerAuthentication(settings)]
     settings['storage'] = await backends.init(settings)
 
-    routes = [
-        Include('/docs', docs_urls),
+    routes = []
+
+    if settings['DEBUG']:
+        routes += [
+            Include('/docs', docs_urls),
+            Include('/static', static_urls),
+        ]
+
+    routes += [
         Route('/auth/token', 'POST', views.auth_token),
         Route('/{resource_type}', 'GET', views.resource_get),
         Route('/{resource_type}', 'POST', views.resource_post),
