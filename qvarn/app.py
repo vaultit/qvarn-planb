@@ -37,7 +37,7 @@ class QvarnUvicornServer(UvicornServer):
         loop.run_forever()
 
 
-def run(app: apistar.App, host: str='127.0.0.1', port: int=8080, debug: bool=True):
+def run(app: apistar.App, host: str='127.0.0.1', port: int=8080, debug: bool=False):
     if debug:
         from uvitools.debug import DebugMiddleware
         app = DebugMiddleware(app, evalex=True)
@@ -95,6 +95,7 @@ async def get_app(initdb=True):
         ]
 
     routes += [
+        Route('/version', 'GET', views.version),
         Route('/auth/token', 'POST', views.auth_token),
         Route('/{resource_type}', 'GET', views.resource_get),
         Route('/{resource_type}', 'POST', views.resource_post),

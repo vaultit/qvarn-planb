@@ -1,6 +1,7 @@
 import urllib.parse
 
 import aiohttp
+import pkg_resources as pres
 
 from apistar import http
 from apistar import Settings
@@ -8,6 +9,18 @@ from apistar import Settings
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
 from qvarn.exceptions import NotFound
+
+
+async def version():
+    return {
+        "api": {
+            "version": "0.82-5.vaultit"
+        },
+        "implementation": {
+            "name": "Qvarn PlanB",
+            "version": pres.get_distribution('qvarn').version,
+        }
+    }
 
 
 async def auth_token(headers: http.Headers, body: http.Body, settings: Settings):
