@@ -12,15 +12,13 @@ import sqlalchemy as sa
 from sqlalchemy.engine import reflection
 from sqlalchemy.dialects.postgresql import JSONB
 
-from apistar import App
 from apistar import Settings
+
+from qvarn.backends import Storage
+from qvarn.backends import ResourceNotFound
 
 
 Index = collections.namedtuple('Index', ('name', 'using', 'table', 'columns'))
-
-
-class ResourceNotFound(Exception):
-    pass
 
 
 def get_new_id(resource_type, random_field=None):
@@ -63,7 +61,7 @@ def chop_long_name(name, maxlen=63):
         return name
 
 
-class Storage:
+class PostgreSQLStorage(Storage):
 
     def __init__(self, engine, pool):
         self.indexes = []
@@ -196,7 +194,7 @@ class Storage:
                         'subpath': '',
                         'data': item,
                     } for item in items]))
-        return row_id
+        return dict(data, id=row_id, revision=revision)
 
     async def get(self, resource_path, row_id):
         table = self._get_table(resource_path)
@@ -295,12 +293,8 @@ class Storage:
 async def init_storage(settings: Settings):
     engine = sa.create_engine('postgresql:///planb', echo=False)
     pool = await aiopg.sa.create_engine(database='planb')
-    storage = Storage(engine, pool)
+    storage = PostgreSQLStorage(engine, pool)
     for path in sorted(pathlib.Path(settings['QVARN']['RESOURCE_TYPES_PATH']).glob('*.yaml')):
         schema = yaml.safe_load(path.read_text())
         storage.add_resource_type(schema)
     return storage
-
-
-def get_preloaded_storage(app: App):
-    return app.storage

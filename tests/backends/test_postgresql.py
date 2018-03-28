@@ -6,10 +6,10 @@ import pytest
 import ruamel.yaml as yaml
 import sqlalchemy as sa
 
-from qvarn.storage import Storage
-from qvarn.storage import chop_long_name
-from qvarn.storage import get_new_id
-from qvarn.storage import iter_lists
+from qvarn.backends.postgresql import PostgreSQLStorage
+from qvarn.backends.postgresql import chop_long_name
+from qvarn.backends.postgresql import get_new_id
+from qvarn.backends.postgresql import iter_lists
 
 
 def test_get_new_id():
@@ -61,7 +61,7 @@ async def test_create():
 
     pool = await aiopg.sa.create_engine(database='planb')
 
-    storage = Storage(engine, pool)
+    storage = PostgreSQLStorage(engine, pool)
     config = configparser.RawConfigParser()
     config.read('qvarn.cfg')
     for path in sorted(pathlib.Path(config.get('qvarn', 'resource-types')).glob('*.yaml')):
@@ -81,7 +81,7 @@ async def test_create():
         ],
     }
 
-    row_id = await storage.create('contracts', data)
-    row = await storage.get('contracts', row_id)
-    assert row == dict(data, id=row_id, revision=row['revision'])
-    assert row_id in await storage.list('contracts')
+    row = await storage.create('contracts', data)
+    row = await storage.get('contracts', row['id'])
+    assert row == dict(data, id=row['id'], revision=row['revision'])
+    assert row['id'] in await storage.list('contracts')

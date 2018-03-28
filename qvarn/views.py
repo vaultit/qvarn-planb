@@ -5,12 +5,15 @@ import aiohttp
 from apistar import http
 from apistar import Settings
 
-from qvarn.storage import Storage
-from qvarn.storage import ResourceNotFound
+from qvarn.backends import Storage
+from qvarn.backends import ResourceNotFound
 from qvarn.exceptions import NotFound
 
 
 async def auth_token(headers: http.Headers, body: http.Body, settings: Settings):
+    """
+    Proxy /auth/token requests to Gluu.
+    """
     async with aiohttp.ClientSession() as session:
         endpoint = urllib.parse.urljoin(settings['QVARN']['TOKEN_ISSUER'], 'oxauth/.well-known/openid-configuration')
         async with session.get(endpoint) as resp:
@@ -25,6 +28,18 @@ async def auth_token(headers: http.Headers, body: http.Body, settings: Settings)
                 return http.Response(await resp.json(), status=resp.status)
             else:
                 return http.Response(await resp.read(), status=resp.status, content_type=content_type)
+
+
+async def resource_get(resource_type, storage: Storage):
+    return {
+        'resources': [
+            {'id': resource_id} for resource_id in await storage.list(resource_type)
+        ],
+    }
+
+
+async def resource_post(resource_type, data: http.RequestData, storage: Storage):
+    return await storage.create(resource_type, data)
 
 
 async def resource_id_get(resource_type, resource_id, storage: Storage):
