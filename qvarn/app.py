@@ -64,7 +64,14 @@ async def get_app(initdb=True):
         'DEBUG': True,
         'AUTHENTICATION': [],
         'QVARN': {
-            'BACKEND': 'postgresql',
+            'BACKEND': {
+                'MODULE': 'qvarn.backends.postgresql',
+                'USERNAME': None,
+                'PASSWORD': None,
+                'HOST': None,
+                'PORT': None,
+                'DBNAME': 'planb',
+            },
             'RESOURCE_TYPES_PATH': '../../resources/resource-conf',
             'TOKEN_ISSUER': 'https://auth-jsonb.alpha.vaultit.org',
             'TOKEN_AUDIENCE': 'http://localhost:8080',

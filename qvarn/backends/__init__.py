@@ -29,7 +29,7 @@ class Storage:
 
 
 async def init(settings: Settings):
-    backend = importlib.import_module('qvarn.backends.' + settings['QVARN']['BACKEND'])
+    backend = importlib.import_module(settings['QVARN']['BACKEND']['MODULE'])
     return await backend.init_storage(settings)
 
 

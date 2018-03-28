@@ -291,10 +291,30 @@ class PostgreSQLStorage(Storage):
 
 
 async def init_storage(settings: Settings):
-    engine = sa.create_engine('postgresql:///planb', echo=False)
-    pool = await aiopg.sa.create_engine(database='planb')
+    params = settings['QVARN']['BACKEND']
+
+    dsn = 'postgresql://'
+    if params['USERNAME']:
+        dsn += '%s:%s@' % (params['USERNAME'], params['PASSWORD'])
+    if params['HOST']:
+        dsn += params['HOST']
+        if params['PORT']:
+            dsn += ':' + params['PORT']
+    dsn += '/' + params['DBNAME']
+
+    engine = sa.create_engine(dsn, echo=False)
+    pool = await aiopg.sa.create_engine(dsn)
+
     storage = PostgreSQLStorage(engine, pool)
-    for path in sorted(pathlib.Path(settings['QVARN']['RESOURCE_TYPES_PATH']).glob('*.yaml')):
+
+    resource_types_path = pathlib.Path(settings['QVARN']['RESOURCE_TYPES_PATH'])
+    if not resource_types_path.exists():
+        raise Exception('RESOURCE_TYPES_PATH not found: ' + settings['QVARN']['RESOURCE_TYPES_PATH'])
+
+    for path in sorted(resource_types_path.glob('*.yaml')):
         schema = yaml.safe_load(path.read_text())
         storage.add_resource_type(schema)
+
+    storage.init()
+
     return storage
