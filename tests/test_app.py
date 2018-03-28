@@ -1,3 +1,18 @@
+def test_version(client):
+    data = client.get('/version').json()
+    data['api']['version'] = '0.82'
+    data['implementation']['version'] = '0.0.1'
+    assert data == {
+        'api': {
+            'version': '0.82',
+        },
+        'implementation': {
+            'name': 'Qvarn PlanB',
+            'version': '0.0.1',
+        },
+    }
+
+
 def test_create_get_list(client):
     data = {
         'type': 'contract',
