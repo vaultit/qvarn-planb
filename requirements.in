@@ -1,4 +1,8 @@
+aiohttp
 aiopg
 apistar[asyncio]
+pycryptodome
+pyjwt
+requests
 ruamel.yaml
 sqlalchemy

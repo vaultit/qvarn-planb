@@ -17,4 +17,9 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=read_requirements('requirements.in'),
     use_scm_version=True,
+    entry_points={
+        'console_scripts': [
+            'qvarn = qvarn.app:main',
+        ]
+    },
 )
