@@ -205,7 +205,7 @@ class PostgreSQLStorage(Storage):
         row_id = get_new_id(resource_type)
         revision = get_new_id(resource_type)
 
-        data = validated(resource_type, self.schema[resource_type], data)
+        data = validated(resource_type, self.schema[resource_type]['prototype'], data)
 
         async with self.pool.acquire() as conn:
             async with conn.begin():
@@ -217,7 +217,11 @@ class PostgreSQLStorage(Storage):
     async def get(self, resource_path, row_id):
         table = self._get_table(resource_path)
         async with self.pool.acquire() as conn:
-            result = await conn.execute(sa.select([table]).where(table.c.id == row_id))
+            result = await conn.execute(sa.select([
+                table.c.id,
+                table.c.revision,
+                table.c.data,
+            ]).where(table.c.id == row_id))
             row = await result.first()
         if row:
             return dict(row.data, id=row.id, revision=row.revision)
@@ -231,7 +235,7 @@ class PostgreSQLStorage(Storage):
         new_revision = get_new_id(resource_type)
         old_revision = data.get('revision')
 
-        data = validated(resource_type, self.schema[resource_type], data)
+        data = validated(resource_type, self.schema[resource_type]['prototype'], data)
 
         async with self.pool.acquire() as conn:
             async with conn.begin():
@@ -260,6 +264,59 @@ class PostgreSQLStorage(Storage):
                     ) % result.rowcount)
 
         return dict(data, id=row_id, revision=new_revision)
+
+    async def get_subpath(self, resource_path, row_id, subpath):
+        table = self._get_table(resource_path)
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(sa.select([
+                table.c.revision,
+                table.c['data_' + subpath],
+            ]).where(table.c.id == row_id))
+            row = await result.first()
+        if row:
+            return dict(row['data_' + subpath], revision=row.revision)
+        else:
+            raise ResourceNotFound("Resource %s not found." % row_id)
+
+    async def put_subpath(self, resource_path, row_id, subpath, data):
+        table = self._get_table(resource_path)
+
+        resource_type = self._get_resource_type(resource_path)
+        new_revision = get_new_id(resource_type)
+        old_revision = data.get('revision')
+
+        data = validated(resource_type, self.schema[resource_type]['subpaths'][subpath]['prototype'], data)
+
+        async with self.pool.acquire() as conn:
+            async with conn.begin():
+                result = await conn.execute(
+                    table.update().
+                    where(table.c.id == row_id).
+                    where(table.c.revision == old_revision).
+                    values({
+                        'revision': new_revision,
+                        'data_' + subpath: data,
+                    })
+                )
+
+                if result.rowcount == 1:
+                    await self._update_aux_tables(conn, (resource_type, subpath), row_id, data, update=True)
+
+                elif result.rowcount == 0:
+                    result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
+                    row = await result.first()
+                    if row is None:
+                        raise ResourceNotFound("Resource %s not found." % row_id)
+                    else:
+                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
+                                            current=row.revision, update=old_revision)
+
+                else:
+                    raise UnexpectedError((
+                        "Update query returned %r rowcount, expected values are 0 or 1. Don't know how to handle that."
+                    ) % result.rowcount)
+
+        return dict(data, revision=new_revision)
 
     async def list(self, resource_path):
         table = self._get_table(resource_path)
