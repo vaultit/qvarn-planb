@@ -1,6 +1,7 @@
 aiohttp
 aiopg
 apistar[asyncio]
+psycopg2-binary
 pycryptodome
 pyjwt
 requests

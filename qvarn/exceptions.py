@@ -26,3 +26,8 @@ class Forbidden(HTTPException):
 class NotFound(HTTPException):
     default_status_code = 404
     default_detail = 'Not found'
+
+
+class Conflict(HTTPException):
+    default_status_code = 409
+    default_detail = 'Conflict'

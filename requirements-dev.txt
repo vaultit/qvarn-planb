@@ -24,6 +24,7 @@ jinja2==2.10              # via apistar, coreschema
 markupsafe==1.0           # via jinja2
 multidict==4.1.0          # via aiohttp, yarl
 pluggy==0.6.0             # via pytest
+psycopg2-binary==2.7.4
 psycopg2==2.7.4           # via aiopg
 py==1.5.2                 # via pytest
 pycryptodome==3.5.1

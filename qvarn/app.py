@@ -100,6 +100,7 @@ async def get_app(initdb=True):
         Route('/{resource_type}', 'GET', views.resource_get),
         Route('/{resource_type}', 'POST', views.resource_post),
         Route('/{resource_type}/{resource_id}', 'GET', views.resource_id_get),
+        Route('/{resource_type}/{resource_id}', 'PUT', views.resource_id_put),
     ]
 
     commands = [

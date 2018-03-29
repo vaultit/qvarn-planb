@@ -6,6 +6,7 @@ import operator
 import os
 import pathlib
 import urllib.parse
+import warnings
 
 import ruamel.yaml as yaml
 import sqlalchemy as sa
@@ -16,6 +17,9 @@ from apistar import Settings
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
+from qvarn.backends import WrongRevision
+from qvarn.backends import UnexpectedError
+from qvarn.validation import validated
 
 
 Index = collections.namedtuple('Index', ('name', 'using', 'table', 'columns'))
@@ -72,6 +76,7 @@ class PostgreSQLStorage(Storage):
         self.tables = {}
         self.aux_tables = collections.defaultdict(dict)
         self._resources_by_path = {}
+        self.schema = {}
 
     def _add_index(self, name, table, *columns, using='gin'):
         self.indexes.append(Index(name, using, table, columns))
@@ -169,7 +174,23 @@ class PostgreSQLStorage(Storage):
         resource_type = self._get_resource_type(resource_path)
         return self.tables[resource_type]
 
+    async def _update_aux_tables(self, conn, resource_type, row_id, data, update=False):
+        # TODO: should be defered
+        for path, items in iter_lists(data):
+            aux_table = self.aux_tables[resource_type][path]
+
+            if update:
+                # In case of update, delete old rows, before inserting new ones.
+                await conn.execute(aux_table.delete().where(aux_table.c.id == row_id))
+
+            await conn.execute(aux_table.insert().values([{
+                'id': row_id,
+                'subpath': '',
+                'data': item,
+            } for item in items]))
+
     def add_resource_type(self, schema):
+        self.schema[schema['type']] = schema['versions'][-1]
         self._create_tables(schema)
         self._resources_by_path[schema['path'].strip('/')] = schema
 
@@ -184,16 +205,13 @@ class PostgreSQLStorage(Storage):
         row_id = get_new_id(resource_type)
         revision = get_new_id(resource_type)
 
+        data = validated(resource_type, self.schema[resource_type], data)
+
         async with self.pool.acquire() as conn:
             async with conn.begin():
                 await conn.execute(table.insert().values(id=row_id, revision=revision, data=data))
-                for path, items in iter_lists(data):
-                    aux_table = self.aux_tables[resource_type][path]
-                    await conn.execute(aux_table.insert().values([{
-                        'id': row_id,
-                        'subpath': '',
-                        'data': item,
-                    } for item in items]))
+                await self._update_aux_tables(conn, resource_type, row_id, data)
+
         return dict(data, id=row_id, revision=revision)
 
     async def get(self, resource_path, row_id):
@@ -204,7 +222,44 @@ class PostgreSQLStorage(Storage):
         if row:
             return dict(row.data, id=row.id, revision=row.revision)
         else:
-            raise ResourceNotFound()
+            raise ResourceNotFound("Resource %s not found." % row_id)
+
+    async def put(self, resource_path, row_id, data):
+        table = self._get_table(resource_path)
+
+        resource_type = self._get_resource_type(resource_path)
+        new_revision = get_new_id(resource_type)
+        old_revision = data.get('revision')
+
+        data = validated(resource_type, self.schema[resource_type], data)
+
+        async with self.pool.acquire() as conn:
+            async with conn.begin():
+                result = await conn.execute(
+                    table.update().
+                    where(table.c.id == row_id).
+                    where(table.c.revision == old_revision).
+                    values(revision=new_revision, data=data)
+                )
+
+                if result.rowcount == 1:
+                    await self._update_aux_tables(conn, resource_type, row_id, data, update=True)
+
+                elif result.rowcount == 0:
+                    result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
+                    row = await result.first()
+                    if row is None:
+                        raise ResourceNotFound("Resource %s not found." % row_id)
+                    else:
+                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
+                                            current=row.revision, update=old_revision)
+
+                else:
+                    raise UnexpectedError((
+                        "Update query returned %r rowcount, expected values are 0 or 1. Don't know how to handle that."
+                    ) % result.rowcount)
+
+        return dict(data, id=row_id, revision=new_revision)
 
     async def list(self, resource_path):
         table = self._get_table(resource_path)
@@ -315,6 +370,8 @@ async def init_storage(settings: Settings):
         schema = yaml.safe_load(path.read_text())
         storage.add_resource_type(schema)
 
-    storage.init()
+    # TODO: uncommend this line below and remove warning, once qvarn-planb is ready for testing outside of my laptop.
+    warnings.warn("Storage initialization is turned off. That means, tables will not be created.", UserWarning)
+    # storage.init()
 
     return storage

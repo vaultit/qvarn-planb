@@ -8,7 +8,9 @@ from apistar import Settings
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
+from qvarn.backends import WrongRevision
 from qvarn.exceptions import NotFound
+from qvarn.exceptions import Conflict
 
 
 async def version():
@@ -68,4 +70,26 @@ async def resource_id_get(resource_type, resource_id, storage: Storage):
             'error_code': 'ItemDoesNotExist',
             'item_id': resource_id,
             'message': "Item does not exist",
+        })
+
+
+async def resource_id_put(resource_type, resource_id, data: http.RequestData, storage: Storage):
+    try:
+        return await storage.put(resource_type, resource_id, data)
+    except ResourceNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_id,
+            'message': "Item does not exist",
+        })
+    except WrongRevision as e:
+        raise Conflict({
+            'error_code': 'WrongRevision',
+            'item_id': resource_id,
+            'current': e.current,
+            'update': e.update,
+            'message': (
+                'Updating resource {item_id} failed: resource currently has revision {current}, update wants to '
+                'update {update}.'
+            ),
         })

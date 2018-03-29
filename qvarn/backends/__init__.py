@@ -3,8 +3,24 @@ import importlib
 from apistar import Settings
 
 
-class ResourceNotFound(Exception):
+class StorageError(Exception):
     pass
+
+
+class UnexpectedError(Exception):
+    pass
+
+
+class ResourceNotFound(StorageError):
+    pass
+
+
+class WrongRevision(StorageError):
+
+    def __init__(self, message, current, update):
+        super().__init__(message)
+        self.current = current
+        self.update = update
 
 
 class Storage:
