@@ -203,3 +203,46 @@ def test_subresource(client):
     row = client.get('/persons/%s/private' % person['id']).json()
     private['revision'] = row['revision']
     assert row == private
+
+
+def test_search_exact(client, storage):
+    storage.wipe_all_data('orgs')
+
+    a = client.post('/orgs', json={
+        'names': ['Company 1', 'The Company'],
+        'country': 'FI',
+        'gov_org_ids': [
+            {
+                'country': 'FI',
+                'org_id_type': 'registration_number',
+                'gov_org_id': '1234567-8',
+            },
+        ],
+    }).json()['id']
+
+    b = client.post('/orgs', json={
+        'names': ['Company 2'],
+        'gov_org_ids': [
+            {
+                'country': 'SE',
+                'org_id_type': 'registration_number',
+                'gov_org_id': '1234567-9',
+            },
+        ],
+    }).json()['id']
+
+    assert client.get('/orgs/search/exact/country/FI').json() == {'resources': [{'id': a}]}
+    assert client.get('/orgs/search/exact/country/SE').json() == {'resources': [{'id': b}]}
+    assert client.get('/orgs/search/exact/org_id_type/registration_number/exact/gov_org_id/1234567-9').json() == {
+        'resources': [{'id': b}],
+    }
+
+
+def test_search_startswith(client, storage):
+    storage.wipe_all_data('orgs')
+
+    a = client.post('/orgs', json={'names': ['abc', 'def']}).json()['id']
+    b = client.post('/orgs', json={'names': ['ghj', 'klm']}).json()['id']
+
+    assert client.get('/orgs/search/startswith/names/ab').json() == {'resources': [{'id': a}]}
+    assert client.get('/orgs/search/startswith/names/kl').json() == {'resources': [{'id': b}]}

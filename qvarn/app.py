@@ -9,6 +9,7 @@ from apistar import Command
 from apistar import Component
 from apistar import Include
 from apistar import Route
+from apistar import Settings
 from apistar import http
 from apistar.frameworks.asyncio import ASyncIOApp
 from apistar.handlers import docs_urls
@@ -20,6 +21,8 @@ from qvarn import views
 from qvarn.auth import BearerAuthentication
 from qvarn.commands import token_signing_key
 from qvarn.exceptions import HTTPException
+from qvarn.utils import merge
+
 
 logger = logging.getLogger()
 
@@ -59,8 +62,8 @@ class App(ASyncIOApp):
             return super().exception_handler(exc)
 
 
-async def get_app(initdb=True):
-    settings = {
+async def get_app(settings: Settings):
+    default_settings = {
         'DEBUG': True,
         'AUTHENTICATION': [],
         'QVARN': {
@@ -71,6 +74,7 @@ async def get_app(initdb=True):
                 'HOST': None,
                 'PORT': None,
                 'DBNAME': 'planb',
+                'INITDB': True,
             },
             'RESOURCE_TYPES_PATH': '../../resources/resource-conf',
             'TOKEN_ISSUER': 'https://auth-jsonb.alpha.vaultit.org',
@@ -83,6 +87,7 @@ async def get_app(initdb=True):
             ),
         },
     }
+    settings = merge(default_settings, settings)
     settings['AUTHENTICATION'] += [BearerAuthentication(settings)]
     settings['storage'] = await backends.init(settings)
 
@@ -99,6 +104,7 @@ async def get_app(initdb=True):
         Route('/auth/token', 'POST', views.auth_token),
         Route('/{resource_type}', 'GET', views.resource_get),
         Route('/{resource_type}', 'POST', views.resource_post),
+        Route('/{resource_type}/search/{query}', 'GET', views.resource_search),
         Route('/{resource_type}/{resource_id}', 'GET', views.resource_id_get),
         Route('/{resource_type}/{resource_id}', 'PUT', views.resource_id_put),
         Route('/{resource_type}/{resource_id}/{subpath}', 'GET', views.resource_id_subpath_get),

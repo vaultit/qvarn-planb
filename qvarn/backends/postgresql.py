@@ -6,7 +6,6 @@ import operator
 import os
 import pathlib
 import urllib.parse
-import warnings
 
 import ruamel.yaml as yaml
 import sqlalchemy as sa
@@ -63,6 +62,55 @@ def chop_long_name(name, maxlen=63):
         return name[:maxlen - 7] + '_' + name_hash[-6:]
     else:
         return name
+
+
+FlatField = collections.namedtuple('FlatField', ('path', 'spec', 'inlist'))
+
+
+def flatten(obj):
+    sort_key = operator.itemgetter(0)
+    flattened = sorted(_flatten(obj), key=sort_key)
+    return {
+        key: {FlatField(*v) for k, *v in group}
+        for key, group in itertools.groupby(flattened, key=sort_key) if key
+    }
+
+
+def _flatten(obj, path=(), inlist=False):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            yield from _flatten(value, path + (key,), inlist)
+    elif isinstance(obj, list):
+        for value in obj:
+            yield from _flatten(value, path + ('',), inlist=True)
+    elif isinstance(obj, tuple):
+        for value in obj:
+            yield from _flatten(value, path, inlist)
+    else:
+        leaf = next(p for p in reversed(path) if p)
+        yield leaf, path, obj, inlist
+
+
+def update_gin_query(query, path, value):
+    if query is None:
+        query = {} if path[0] else []
+    ref = query
+    for a, b in itertools.zip_longest(path, path[1:]):
+        if b is None:
+            if a:
+                ref[a] = value
+            else:
+                ref.append(value)
+        else:
+            if a:
+                if a not in ref:
+                    ref[a] = {} if b else []
+                ref = ref[a]
+            else:
+                if len(ref) == 0:
+                    ref.append({} if b else [])
+                ref = ref[0]
+    return query
 
 
 class PostgreSQLStorage(Storage):
@@ -327,7 +375,7 @@ class PostgreSQLStorage(Storage):
                 )
             ]
 
-    def search(self, resource_path, search_path):
+    async def search(self, resource_path, search_path):
         operator_args = {
             'contains': 2,
             'exact': 2,
@@ -355,14 +403,27 @@ class PostgreSQLStorage(Storage):
             except StopIteration:
                 raise Exception("Operator %r requires at least %d arguments." % (operator, args_count))
             operators.append((operator, args))
+            operator = next(words, None)
 
         fields = []
         sort_keys = []
         show_all = False
         offset = None
         limit = None
+        where = []
+        gin = {}
 
         table = self._get_table(resource_path)
+        resource_type = self._get_resource_type(resource_path)
+        files = set(self.schema[resource_type].get('files', []))
+        schema = flatten(
+            (self.schema[resource_type]['prototype'],) +
+            tuple(
+                proto['prototype']
+                for subpath, proto in self.schema[resource_type]['subpaths'].items()
+                if subpath not in files
+            )
+        )
 
         for operator, args in operators:
             if operator == 'show_all':
@@ -375,6 +436,25 @@ class PostgreSQLStorage(Storage):
                 offset = int(args[0])
             elif operator == 'limit':
                 limit = int(args[0])
+            elif operator == 'exact':
+                field, value = args
+                specs = schema[field]
+                clauses = [table.c.data[spec.path].astext == value for spec in specs]
+                if len(specs) == 1:
+                    for spec in specs:
+                        update_gin_query(gin, spec.path, value)
+                else:
+                    where.append(sa.or_(*(
+                        table.c.data.contains(update_gin_query({}, spec.path, value)) for spec in specs
+                    )))
+            elif operator == 'startswith':
+                field, value = args
+                specs = schema[field]
+                clauses = [table.c.data[spec.path].astext.startswith(value) for spec in specs if not spec.inlist]
+                if len(specs) == 1:
+                    where += clauses
+                else:
+                    where.append(sa.or_(*clauses))
             else:
                 raise Exception("Operator %r is not yet implemented." % operator)
 
@@ -382,6 +462,12 @@ class PostgreSQLStorage(Storage):
             query = sa.select([table.c.id])
         else:
             query = sa.select([table.c.id, table.c.revision, table.c.body])
+
+        if gin:
+            where.append(table.c.data.contains(gin))
+
+        if where:
+            query = query.where(sa.and_(*where))
 
         if sort_keys:
             query = query.order_by(*(table.c[key] for key in sort_keys))
@@ -392,31 +478,49 @@ class PostgreSQLStorage(Storage):
         if offset:
             query = query.offset(offset)
 
-        result = self.engine.execute(query)
+        async with self.pool.acquire() as conn:
+            print(query)
+            result = conn.execute(query)
 
-        if show_all:
-            return [dict(row.data, id=row.id, revision=row.revision) for row in result]
-        elif fields:
-            return [dict({field: row[field] for field in fields}, id=row.id, revision=row.revision) for row in result]
-        else:
-            return [dict(id=row.id, revision=row.revision) for row in result]
+            if show_all:
+                return [dict(row.data, id=row.id, revision=row.revision) async for row in result]
+            elif fields:
+                return [dict({field: row[field] for field in fields}, id=row.id) async for row in result]
+            else:
+                return [{'id': row.id} async for row in result]
+
+    def wipe_all_data(self, *resource_paths):
+        """A quick way to wipe all data in specified resource paths, mainly used for tests."""
+        with self.engine.begin() as conn:
+            for resource_path in resource_paths:
+                table = self._get_table(resource_path)
+                resource_type = self._get_resource_type(resource_path)
+                conn.execute(table.delete())
+                for aux_table in self.aux_tables[resource_type].values():
+                    conn.execute(table.delete())
+                files = set(self.schema[resource_type].get('files', []))
+                for subpath in self.schema[resource_type]['subpaths'].keys():
+                    if subpath not in files:
+                        for aux_table in self.aux_tables[(resource_type, subpath)].values():
+                            conn.execute(table.delete())
+
+
+def settings_to_dsn(settings):
+    dsn = 'postgresql://'
+    if settings['USERNAME']:
+        dsn += '%s:%s@' % (settings['USERNAME'], settings['PASSWORD'])
+    if settings['HOST']:
+        dsn += settings['HOST']
+        if settings['PORT']:
+            dsn += ':' + settings['PORT']
+    dsn += '/' + settings['DBNAME']
+    return dsn
 
 
 async def init_storage(settings: Settings):
-    params = settings['QVARN']['BACKEND']
-
-    dsn = 'postgresql://'
-    if params['USERNAME']:
-        dsn += '%s:%s@' % (params['USERNAME'], params['PASSWORD'])
-    if params['HOST']:
-        dsn += params['HOST']
-        if params['PORT']:
-            dsn += ':' + params['PORT']
-    dsn += '/' + params['DBNAME']
-
+    dsn = settings_to_dsn(settings['QVARN']['BACKEND'])
     engine = sa.create_engine(dsn, echo=False)
     pool = await aiopg.sa.create_engine(dsn)
-
     storage = PostgreSQLStorage(engine, pool)
 
     resource_types_path = pathlib.Path(settings['QVARN']['RESOURCE_TYPES_PATH'])
@@ -427,8 +531,7 @@ async def init_storage(settings: Settings):
         schema = yaml.safe_load(path.read_text())
         storage.add_resource_type(schema)
 
-    # TODO: uncommend this line below and remove warning, once qvarn-planb is ready for testing outside of my laptop.
-    warnings.warn("Storage initialization is turned off. That means, tables will not be created.", UserWarning)
-    # storage.init()
+    if settings['QVARN']['BACKEND']['INITDB']:
+        storage.init()
 
     return storage

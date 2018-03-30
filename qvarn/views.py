@@ -5,6 +5,7 @@ import pkg_resources as pres
 
 from apistar import http
 from apistar import Settings
+from apistar.types import PathWildcard
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
@@ -126,3 +127,11 @@ async def resource_id_subpath_put(resource_type, resource_id, subpath, data: htt
                 'update {update}.'
             ),
         })
+
+
+async def resource_search(resource_type, query: PathWildcard, storage: Storage):
+    return {
+        'resources': [
+            resource for resource in await storage.search(resource_type, query)
+        ],
+    }

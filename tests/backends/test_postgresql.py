@@ -10,6 +10,9 @@ from qvarn.backends.postgresql import PostgreSQLStorage
 from qvarn.backends.postgresql import chop_long_name
 from qvarn.backends.postgresql import get_new_id
 from qvarn.backends.postgresql import iter_lists
+from qvarn.backends.postgresql import FlatField
+from qvarn.backends.postgresql import flatten
+from qvarn.backends.postgresql import update_gin_query
 
 
 def test_get_new_id():
@@ -44,15 +47,41 @@ def test_separate_lists():
     ]
 
 
-def gin_query(proto, key, value, path=()):
-    if isinstance(proto, dict):
-        # TODO:
-        pass
+def test_flatten():
+    data = {
+        'a': [
+            {'b': 3},
+            {'b': [1, 2], 'a': '4'},
+        ],
+        'c': 42,
+    }
+    data_subpath = {
+        'x': 0,
+    }
+    assert flatten((data, data_subpath)) == {
+        'a': {
+            FlatField(('a', '', 'a'), '4', True),
+        },
+        'b': {
+            FlatField(('a', '', 'b'), 3, True),
+            FlatField(('a', '', 'b', ''), 1, True),
+            FlatField(('a', '', 'b', ''), 2, True),
+        },
+        'c': {
+            FlatField(('c',), 42, False),
+        },
+        'x': {
+            FlatField(('x',), 0, False),
+        }
+    }
 
 
-def _test_gin_query():
-    prototype = {'a': [{'b': 0}], 'c': 0}
-    assert gin_query(prototype, 'b', 42) == {'a': [{'b': 42}]}
+def test_update_git_query():
+    assert update_gin_query(None, ('a',), 1) == {'a': 1}
+    assert update_gin_query(None, ('',), 1) == [1]
+    assert update_gin_query(None, ('a', '', 'b'), 1) == {'a': [{'b': 1}]}
+    assert update_gin_query({'a': 1}, ('b',), 2) == {'a': 1, 'b': 2}
+    assert update_gin_query([1, 2], ('',), 3) == [1, 2, 3]
 
 
 @pytest.mark.asyncio
