@@ -220,37 +220,42 @@ class PostgreSQLStorage(Storage):
             tuple(self.schema[resource_type]['subpaths'][subpath]['prototype'] for subpath in subpaths)
         )
 
-    async def _update_aux_tables(self, conn, resource_type, row_id):
+    async def _update_aux_tables(self, conn, resource_type, row_id, create=None):
         # TODO: should be defered
 
-        # Get data from main table and all subpaths.
-        # We need this, because search look for data everywhere including all subpaths.
-        table = self.tables[resource_type]
-        subpaths = self._get_subpaths(resource_type)
-        result = await conn.execute(sa.select(
-            [table.c.data] +
-            [table.c['data_' + subpath] for subpath in subpaths]
-        ).where(table.c.id == row_id))
-        row = await result.first()
-        data = (
-            [row.data] +
-            [row['data_' + subpath] for subpath in subpaths if row['data_' + subpath]]
-        )
-
-        # Update search field containing data from resource and all subpaths in a convinient shape for searches.
-        await conn.execute(
-            table.update().
-            where(table.c.id == row_id).
-            values(
-                search=list(itertools.chain.from_iterable(flatten_for_gin(x) for x in data))
+        if create is None:
+            # Get data from main table and all subpaths.
+            # We need this, because search look for data everywhere including all subpaths.
+            table = self.tables[resource_type]
+            subpaths = self._get_subpaths(resource_type)
+            result = await conn.execute(sa.select(
+                [table.c.data] +
+                [table.c['data_' + subpath] for subpath in subpaths]
+            ).where(table.c.id == row_id))
+            row = await result.first()
+            data = (
+                [row.data] +
+                [row['data_' + subpath] for subpath in subpaths if row['data_' + subpath]]
             )
-        )
+
+            # Update search field containing data from resource and all subpaths in a convinient shape for searches.
+            await conn.execute(
+                table.update().
+                where(table.c.id == row_id).
+                values(
+                    search=list(itertools.chain.from_iterable(flatten_for_gin(x) for x in data))
+                )
+            )
+
+        else:
+            data = create
 
         # Update list tables
         aux_table = self.aux_tables[resource_type]
 
         # Delete old rows, before inserting new ones.
-        await conn.execute(aux_table.delete().where(aux_table.c.id == row_id))
+        if create is None:
+            await conn.execute(aux_table.delete().where(aux_table.c.id == row_id))
 
         # Populate aux table with data from lists, for searches.
         await conn.execute(aux_table.insert().values([{
@@ -280,7 +285,7 @@ class PostgreSQLStorage(Storage):
         async with self.pool.acquire() as conn:
             async with conn.begin():
                 await conn.execute(table.insert().values(id=row_id, revision=revision, data=data, search=search))
-                await self._update_aux_tables(conn, resource_type, row_id)
+                await self._update_aux_tables(conn, resource_type, row_id, data)
 
         return dict(data, id=row_id, revision=revision)
 
