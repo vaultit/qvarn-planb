@@ -24,7 +24,7 @@ run: env
 
 .PHONY: test
 test: env
-	env/bin/py.test tests
+	env/bin/py.test tests --cov=qvarn --cov-report=term-missing
 
 .PHONY: dist
 dist: env/bin/pip
