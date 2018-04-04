@@ -181,7 +181,7 @@ class PostgreSQLStorage(Storage):
         # Define auxiliary tables and gin indexes for all nested lists.
         aux_table = sa.Table(
             chop_long_name(resource_type + '__aux'), self.metadata,
-            sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE')),
+            sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE'), index=True),
             sa.Column('data', JSONB, nullable=False),
         )
         self.aux_tables[resource_type] = aux_table
@@ -190,7 +190,7 @@ class PostgreSQLStorage(Storage):
         if files:
             sa.Table(
                 chop_long_name(resource_type + '__files'), self.metadata,
-                sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE')),
+                sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE'), index=True),
                 sa.Column('subpath', sa.String(128), nullable=False),
                 sa.Column('blob', sa.LargeBinary()),
             )
