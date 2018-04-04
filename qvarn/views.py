@@ -61,14 +61,21 @@ async def resource_get(resource_type, storage: Storage):
         }
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })
 
 
 async def resource_post(resource_type, data: http.RequestData, storage: Storage):
-    return await storage.create(resource_type, data)
+    try:
+        return await storage.create(resource_type, data)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
+        })
 
 
 async def resource_id_get(resource_type, resource_id, storage: Storage):
@@ -76,9 +83,9 @@ async def resource_id_get(resource_type, resource_id, storage: Storage):
         return await storage.get(resource_type, resource_id)
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })
     except ResourceNotFound:
         raise NotFound({
@@ -93,9 +100,9 @@ async def resource_id_put(resource_type, resource_id, data: http.RequestData, st
         return await storage.put(resource_type, resource_id, data)
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })
     except ResourceNotFound:
         raise NotFound({
@@ -121,9 +128,9 @@ async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: 
         return await storage.get_subpath(resource_type, resource_id, subpath)
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })
     except ResourceNotFound:
         raise NotFound({
@@ -138,9 +145,9 @@ async def resource_id_subpath_put(resource_type, resource_id, subpath, data: htt
         return await storage.put_subpath(resource_type, resource_id, subpath, data)
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })
     except ResourceNotFound:
         raise NotFound({
@@ -170,7 +177,7 @@ async def resource_search(resource_type, query: PathWildcard, storage: Storage):
         }
     except ResourceTypeNotFound:
         raise NotFound({
-            'error_code': 'ItemDoesNotExist',
-            'item_id': resource_type,
-            'message': "Item does not exist",
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
         })

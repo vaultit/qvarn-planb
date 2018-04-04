@@ -268,3 +268,22 @@ def test_search_gte_lte(client, storage):
     assert client.get('/test/search/gt/integer/1').json() == {'resources': [{'id': b}]}
     assert client.get('/test/search/lt/integer/4').json() == {'resources': [{'id': a}]}
     assert client.get('/test/search/gt/integer/4').json() == {'resources': []}
+
+
+def test_missing_resource_type(client):
+    assert client.get('/invalid').status_code == 404
+    assert client.get('/invalid').json() == {
+        'error_code': 'ResourceTypeDoesNotExist',
+        'resource_type': 'invalid',
+        'message': 'Resource type does not exist',
+    }
+    assert client.post('/invalid', json={}).json() == {
+        'error_code': 'ResourceTypeDoesNotExist',
+        'resource_type': 'invalid',
+        'message': 'Resource type does not exist',
+    }
+    assert client.get('/invalid/id').json() == {
+        'error_code': 'ResourceTypeDoesNotExist',
+        'resource_type': 'invalid',
+        'message': 'Resource type does not exist',
+    }
