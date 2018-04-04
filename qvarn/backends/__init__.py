@@ -11,6 +11,10 @@ class UnexpectedError(Exception):
     pass
 
 
+class ResourceTypeNotFound(StorageError):
+    pass
+
+
 class ResourceNotFound(StorageError):
     pass
 

@@ -9,6 +9,7 @@ from apistar.types import PathWildcard
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
+from qvarn.backends import ResourceTypeNotFound
 from qvarn.backends import WrongRevision
 from qvarn.exceptions import NotFound
 from qvarn.exceptions import Conflict
@@ -52,11 +53,18 @@ async def auth_token(headers: http.Headers, body: http.Body, settings: Settings)
 
 
 async def resource_get(resource_type, storage: Storage):
-    return {
-        'resources': [
-            {'id': resource_id} for resource_id in await storage.list(resource_type)
-        ],
-    }
+    try:
+        return {
+            'resources': [
+                {'id': resource_id} for resource_id in await storage.list(resource_type)
+            ],
+        }
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })
 
 
 async def resource_post(resource_type, data: http.RequestData, storage: Storage):
@@ -66,6 +74,12 @@ async def resource_post(resource_type, data: http.RequestData, storage: Storage)
 async def resource_id_get(resource_type, resource_id, storage: Storage):
     try:
         return await storage.get(resource_type, resource_id)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })
     except ResourceNotFound:
         raise NotFound({
             'error_code': 'ItemDoesNotExist',
@@ -77,6 +91,12 @@ async def resource_id_get(resource_type, resource_id, storage: Storage):
 async def resource_id_put(resource_type, resource_id, data: http.RequestData, storage: Storage):
     try:
         return await storage.put(resource_type, resource_id, data)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })
     except ResourceNotFound:
         raise NotFound({
             'error_code': 'ItemDoesNotExist',
@@ -99,6 +119,12 @@ async def resource_id_put(resource_type, resource_id, data: http.RequestData, st
 async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: Storage):
     try:
         return await storage.get_subpath(resource_type, resource_id, subpath)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })
     except ResourceNotFound:
         raise NotFound({
             'error_code': 'ItemDoesNotExist',
@@ -110,6 +136,12 @@ async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: 
 async def resource_id_subpath_put(resource_type, resource_id, subpath, data: http.RequestData, storage: Storage):
     try:
         return await storage.put_subpath(resource_type, resource_id, subpath, data)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })
     except ResourceNotFound:
         raise NotFound({
             'error_code': 'ItemDoesNotExist',
@@ -130,8 +162,15 @@ async def resource_id_subpath_put(resource_type, resource_id, subpath, data: htt
 
 
 async def resource_search(resource_type, query: PathWildcard, storage: Storage):
-    return {
-        'resources': [
-            resource for resource in await storage.search(resource_type, query)
-        ],
-    }
+    try:
+        return {
+            'resources': [
+                resource for resource in await storage.search(resource_type, query)
+            ],
+        }
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_type,
+            'message': "Item does not exist",
+        })

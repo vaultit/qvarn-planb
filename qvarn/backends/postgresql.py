@@ -16,6 +16,7 @@ from apistar import Settings
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
+from qvarn.backends import ResourceTypeNotFound
 from qvarn.backends import WrongRevision
 from qvarn.backends import UnexpectedError
 from qvarn.validation import validated
@@ -195,7 +196,10 @@ class PostgreSQLStorage(Storage):
             )
 
     def _get_resource_type(self, resource_path):
-        return self._resources_by_path[resource_path]['type']
+        try:
+            return self._resources_by_path[resource_path]['type']
+        except KeyError:
+            raise ResourceTypeNotFound("Resource type %r not found." % resource_path)
 
     def _get_table(self, resource_path):
         resource_type = self._get_resource_type(resource_path)
