@@ -1,18 +1,7 @@
-import configparser
-import pathlib
-
-import aiopg.sa
-import pytest
-import ruamel.yaml as yaml
-import sqlalchemy as sa
-
-from qvarn.backends.postgresql import PostgreSQLStorage
 from qvarn.backends.postgresql import chop_long_name
 from qvarn.backends.postgresql import get_new_id
-from qvarn.backends.postgresql import iter_lists
-from qvarn.backends.postgresql import FlatField
-from qvarn.backends.postgresql import flatten
-from qvarn.backends.postgresql import update_gin_query
+from qvarn.backends.postgresql import flatten_for_lists
+from qvarn.backends.postgresql import flatten_for_gin
 
 
 def test_get_new_id():
@@ -25,92 +14,50 @@ def test_chop_long_name():
     assert chop_long_name(name, 18) == 'foo_bar_baz_a1325b'
 
 
-def test_separate_lists():
+def test_flatten_for_lists():
     data = {
-        "a": {
-            "b": 1,
-            "c": [42],
+        'a': 1,
+        'b': [2, 3],
+        'c': [
+            {'d': 4},
+        ],
+        'd': 5,
+        'e': {
+            'f': 6,
         },
-        "d": [
-            {"x": 1},
-            {"x": 2},
-        ],
-        "e": [
-            [1, 2],
-            [3, 4],
-        ],
     }
-    assert list(iter_lists(data)) == [
-        (('a', 'c'), [42]),
-        (('d',), [{'x': 1}, {'x': 2}]),
-        (('e',), [1, 2, 3, 4]),
+    assert flatten_for_lists(data) == [
+        {
+            'a': 1,
+            'b': 2,
+            'd': 5,
+            'f': 6,
+        },
+        {
+            'b': 3,
+            'd': 4,
+        },
     ]
 
 
-def test_flatten():
+def test_flatten_for_gin():
     data = {
-        'a': [
-            {'b': 3},
-            {'b': [1, 2], 'a': '4'},
+        'a': 1,
+        'b': [2, 3],
+        'c': [
+            {'d': 4},
         ],
-        'c': 42,
-    }
-    data_subpath = {
-        'x': 0,
-    }
-    assert flatten((data, data_subpath)) == {
-        'a': {
-            FlatField(('a', '', 'a'), '4', True),
+        'd': 5,
+        'e': {
+            'f': 6,
         },
-        'b': {
-            FlatField(('a', '', 'b'), 3, True),
-            FlatField(('a', '', 'b', ''), 1, True),
-            FlatField(('a', '', 'b', ''), 2, True),
-        },
-        'c': {
-            FlatField(('c',), 42, False),
-        },
-        'x': {
-            FlatField(('x',), 0, False),
-        }
     }
-
-
-def test_update_git_query():
-    assert update_gin_query(None, ('a',), 1) == {'a': 1}
-    assert update_gin_query(None, ('',), 1) == [1]
-    assert update_gin_query(None, ('a', '', 'b'), 1) == {'a': [{'b': 1}]}
-    assert update_gin_query({'a': 1}, ('b',), 2) == {'a': 1, 'b': 2}
-    assert update_gin_query([1, 2], ('',), 3) == [1, 2, 3]
-
-
-@pytest.mark.asyncio
-async def test_create():
-    engine = sa.create_engine('postgresql:///planb', echo=False)
-
-    pool = await aiopg.sa.create_engine(database='planb')
-
-    storage = PostgreSQLStorage(engine, pool)
-    config = configparser.RawConfigParser()
-    config.read('qvarn.cfg')
-    for path in sorted(pathlib.Path(config.get('qvarn', 'resource-types')).glob('*.yaml')):
-        schema = yaml.safe_load(path.read_text())
-        storage.add_resource_type(schema)
-
-    data = {
-        'type': 'contract',
-        'contract_type': 'tilaajavastuu_account',
-        'preferred_language': 'lt',
-        'contract_parties': [
-            {
-                'type': 'person',
-                'role': 'user',
-                'resource_id': 'person-id',
-            },
-        ],
-    }
-
-    row = await storage.create('contracts', data)
-    row = await storage.get('contracts', row['id'])
-    assert row == dict(data, id=row['id'], revision=row['revision'])
-    assert row['id'] in await storage.list('contracts')
+    sort_key = lambda x: list(x.items())[0]  # noqa
+    assert sorted(flatten_for_gin(data), key=sort_key) == [
+        {'a': 1},
+        {'b': 2},
+        {'b': 3},
+        {'d': 4},
+        {'d': 5},
+        {'f': 6},
+    ]

@@ -17,7 +17,7 @@ SETTINGS = {
             'HOST': None,
             'PORT': None,
             'DBNAME': 'planbtest',
-            'INITDB': False,
+            'INITDB': True,
         },
         'RESOURCE_TYPES_PATH': str(pathlib.Path(__file__).parent / 'resources'),
     },

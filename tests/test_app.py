@@ -245,4 +245,26 @@ def test_search_startswith(client, storage):
     b = client.post('/orgs', json={'names': ['ghj', 'klm']}).json()['id']
 
     assert client.get('/orgs/search/startswith/names/ab').json() == {'resources': [{'id': a}]}
-    assert client.get('/orgs/search/startswith/names/kl').json() == {'resources': [{'id': b}]}
+    assert client.get('/orgs/search/startswith/names/Kl').json() == {'resources': [{'id': b}]}
+
+
+def test_search_contains(client, storage):
+    storage.wipe_all_data('orgs')
+
+    a = client.post('/orgs', json={'names': ['abc', 'def']}).json()['id']
+    b = client.post('/orgs', json={'names': ['ghj', 'klm']}).json()['id']
+
+    assert client.get('/orgs/search/contains/names/bc').json() == {'resources': [{'id': a}]}
+    assert client.get('/orgs/search/contains/names/l').json() == {'resources': [{'id': b}]}
+    assert client.get('/orgs/search/contains/names/x').json() == {'resources': []}
+
+
+def test_search_gte_lte(client, storage):
+    storage.wipe_all_data('test')
+
+    a = client.post('/test', json={'string': '0', 'integer': 1, 'float': 2}).json()['id']
+    b = client.post('/test', json={'string': '3', 'integer': 4, 'float': 5}).json()['id']
+
+    assert client.get('/test/search/gt/integer/1').json() == {'resources': [{'id': b}]}
+    assert client.get('/test/search/lt/integer/4').json() == {'resources': [{'id': a}]}
+    assert client.get('/test/search/gt/integer/4').json() == {'resources': []}

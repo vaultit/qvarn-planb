@@ -1,0 +1,16 @@
+type: test
+path: /test
+versions:
+
+- version: v0
+  prototype:
+    id: ""
+    type: ""
+    revision: ""
+    string: ""
+    integer: 0
+    float: 0.0
+    boolean: false
+    list:
+    - foo: ""
+      bar: ""
