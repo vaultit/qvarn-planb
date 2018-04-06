@@ -341,6 +341,17 @@ class PostgreSQLStorage(Storage):
 
         return dict(data, id=row_id, revision=new_revision)
 
+    async def delete(self, resource_path, row_id):
+        resource_type = self._get_resource_type(resource_path)
+        table = self._get_table(resource_path)
+        aux_table = self.aux_tables[resource_type]
+
+        with self.engine.begin() as conn:
+            conn.execute(table.delete().where(table.c.id == row_id))
+            conn.execute(aux_table.delete().where(table.c.id == row_id))
+
+        return {}
+
     async def get_subpath(self, resource_path, row_id, subpath):
         table = self._get_table(resource_path)
         async with self.pool.acquire() as conn:
@@ -433,9 +444,9 @@ class PostgreSQLStorage(Storage):
             operators.append((operator, args))
             operator = next(words, None)
 
-        fields = []
         sort_keys = []
         show_all = False
+        show = []
         offset = None
         limit = None
         where = []
@@ -453,7 +464,7 @@ class PostgreSQLStorage(Storage):
                 show_all = True
 
             elif operator == 'show':
-                fields.extend(args)
+                show.extend(args)
 
             elif operator == 'sort':
                 sort_keys.extend(args)
@@ -521,10 +532,10 @@ class PostgreSQLStorage(Storage):
             else:
                 raise Exception("Operator %r is not yet implemented." % operator)
 
-        if show_all is False and len(fields) == 0:
+        if show_all is False and len(show) == 0:
             query = sa.select([table.c.id], distinct=table.c.id)
         else:
-            query = sa.select([table.c.id, table.c.revision, table.c.body], distinct=table.c.id)
+            query = sa.select([table.c.id, table.c.revision, table.c.data], distinct=table.c.id)
 
         for join in joins:
             query = query.select_from(join)
@@ -536,7 +547,13 @@ class PostgreSQLStorage(Storage):
             query = query.where(sa.and_(*where))
 
         if sort_keys:
-            query = query.order_by(*(table.c[key] for key in sort_keys))
+            db_sort_keys = []
+            for sort_key in sort_keys:
+                if sort_key == 'id':
+                    db_sort_keys.append(table.c.id)
+                else:
+                    db_sort_keys.append(table.c.data[sort_key])
+            query = query.order_by(*db_sort_keys)
 
         if limit:
             query = query.limit(limit)
@@ -549,8 +566,8 @@ class PostgreSQLStorage(Storage):
 
             if show_all:
                 return [dict(row.data, id=row.id, revision=row.revision) async for row in result]
-            elif fields:
-                return [dict({field: row[field] for field in fields}, id=row.id) async for row in result]
+            elif show:
+                return [dict({field: row.data[field] for field in show if field in row.data}, id=row.id) async for row in result]
             else:
                 return [{'id': row.id} async for row in result]
 

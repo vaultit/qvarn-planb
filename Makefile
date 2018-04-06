@@ -2,7 +2,7 @@
 env: env/.done requirements.txt
 
 env/bin/pip:
-	virtualenv -p python3 env
+	python3.6 -m venv env
 	env/bin/pip install --upgrade pip wheel setuptools
 
 env/.done: env/bin/pip setup.py requirements-dev.txt
@@ -20,7 +20,7 @@ requirements.txt: env/bin/pip-compile requirements.in
 
 .PHONY: run
 run: env
-	env/bin/qvarn run
+	env/bin/qvarn run --host 0.0.0.0
 
 .PHONY: test
 test: env

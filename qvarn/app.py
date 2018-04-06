@@ -62,21 +62,21 @@ class App(ASyncIOApp):
             return super().exception_handler(exc)
 
 
-async def get_app(settings: Settings):
+async def get_app(settings: Settings=None):
     default_settings = {
         'DEBUG': True,
         'AUTHENTICATION': [],
         'QVARN': {
             'BACKEND': {
                 'MODULE': 'qvarn.backends.postgresql',
-                'USERNAME': None,
-                'PASSWORD': None,
-                'HOST': None,
+                'USERNAME': 'qvarn',
+                'PASSWORD': 'qvarn',
+                'HOST': 'postgres',
                 'PORT': None,
                 'DBNAME': 'planb',
                 'INITDB': True,
             },
-            'RESOURCE_TYPES_PATH': '../../resources/resource-conf',
+            'RESOURCE_TYPES_PATH': '/etc/qvarn/resources',
             'TOKEN_ISSUER': 'https://auth-jsonb.alpha.vaultit.org',
             'TOKEN_AUDIENCE': 'http://localhost:8080',
             'TOKEN_SIGNING_KEY': (
@@ -87,7 +87,7 @@ async def get_app(settings: Settings):
             ),
         },
     }
-    settings = merge(default_settings, settings)
+    settings = merge(default_settings, settings or {})
     settings['AUTHENTICATION'] += [BearerAuthentication(settings)]
     settings['storage'] = await backends.init(settings)
 
@@ -107,6 +107,7 @@ async def get_app(settings: Settings):
         Route('/{resource_type}/search/{query}', 'GET', views.resource_search),
         Route('/{resource_type}/{resource_id}', 'GET', views.resource_id_get),
         Route('/{resource_type}/{resource_id}', 'PUT', views.resource_id_put),
+        Route('/{resource_type}/{resource_id}', 'DELETE', views.resource_id_delete),
         Route('/{resource_type}/{resource_id}/{subpath}', 'GET', views.resource_id_subpath_get),
         Route('/{resource_type}/{resource_id}/{subpath}', 'PUT', views.resource_id_subpath_put),
     ]

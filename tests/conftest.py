@@ -12,9 +12,9 @@ SETTINGS = {
     'QVARN': {
         'BACKEND': {
             'MODULE': 'qvarn.backends.postgresql',
-            'USERNAME': None,
-            'PASSWORD': None,
-            'HOST': None,
+            'USERNAME': 'qvarn',
+            'PASSWORD': 'qvarn',
+            'HOST': 'localhost',
             'PORT': None,
             'DBNAME': 'planbtest',
             'INITDB': True,
