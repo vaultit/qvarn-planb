@@ -13,6 +13,7 @@ setup(
     description='backend service for JSON and binary data storage',
     author='Mantas Zimnickas',
     author_email='sirexas@gmail.com',
+    licence='AGPL',
     packages=['qvarn'],
     setup_requires=['setuptools_scm'],
     install_requires=read_requirements('requirements.in'),
