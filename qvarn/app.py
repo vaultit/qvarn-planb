@@ -40,7 +40,7 @@ class QvarnUvicornServer(UvicornServer):
         loop.run_forever()
 
 
-def run(app: apistar.App, host: str='127.0.0.1', port: int=8080, debug: bool=False):
+def run(app: apistar.App, host: str='127.0.0.1', port: int=8000, debug: bool=False):
     if debug:
         from uvitools.debug import DebugMiddleware
         app = DebugMiddleware(app, evalex=True)
