@@ -123,6 +123,34 @@ async def resource_id_put(resource_type, resource_id, data: http.RequestData, st
         })
 
 
+async def resource_id_delete(resource_type, resource_id, storage: Storage):
+    try:
+        return await storage.delete(resource_type, resource_id)
+    except ResourceTypeNotFound:
+        raise NotFound({
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': resource_type,
+            'message': 'Resource type does not exist',
+        })
+    except ResourceNotFound:
+        raise NotFound({
+            'error_code': 'ItemDoesNotExist',
+            'item_id': resource_id,
+            'message': "Item does not exist",
+        })
+    except WrongRevision as e:
+        raise Conflict({
+            'error_code': 'WrongRevision',
+            'item_id': resource_id,
+            'current': e.current,
+            'update': e.update,
+            'message': (
+                'Updating resource {item_id} failed: resource currently has revision {current}, update wants to '
+                'update {update}.'
+            ),
+        })
+
+
 async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: Storage):
     try:
         return await storage.get_subpath(resource_type, resource_id, subpath)

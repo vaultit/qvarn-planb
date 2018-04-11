@@ -1,3 +1,17 @@
+def org(name, gov_org_id):
+    return {
+        'names': [name],
+        'country': 'FI',
+        'gov_org_ids': [
+            {
+                'country': 'FI',
+                'org_id_type': 'registration_number',
+                'gov_org_id': gov_org_id,
+            }
+        ],
+    }
+
+
 def test_version(client):
     data = client.get('/version').json()
     data['api']['version'] = '0.82'
@@ -286,4 +300,59 @@ def test_missing_resource_type(client):
         'error_code': 'ResourceTypeDoesNotExist',
         'resource_type': 'invalid',
         'message': 'Resource type does not exist',
+    }
+
+
+def test_search_show(client, storage):
+    storage.wipe_all_data('orgs')
+
+    a = client.post('/orgs', json=org('foo', '123')).json()['id']
+
+    assert client.get('/orgs/search/show/names').json() == {
+        'resources': [
+            {'id': a, 'names': ['foo']},
+        ],
+    }
+
+    assert client.get('/orgs/search/show/gov_org_id').json() == {
+        'resources': [
+            {'id': a},
+        ],
+    }
+
+
+def test_search_show_all(client, storage):
+    storage.wipe_all_data('orgs')
+
+    def org(name, gov_org_id):
+        return {
+            'names': [name],
+            'country': 'FI',
+            'gov_org_ids': [
+                {
+                    'country': 'FI',
+                    'org_id_type': 'registration_number',
+                    'gov_org_id': gov_org_id,
+                }
+            ],
+        }
+
+    a = client.post('/orgs', json=org('foo', '123')).json()
+
+    assert client.get('/orgs/search/show_all').json() == {
+        'resources': [
+            {
+                'id': a['id'],
+                'revision': a['revision'],
+                'names': ['foo'],
+                'country': 'FI',
+                'gov_org_ids': [
+                    {
+                        'country': 'FI',
+                        'org_id_type': 'registration_number',
+                        'gov_org_id': '123',
+                    }
+                ],
+            },
+        ],
     }
