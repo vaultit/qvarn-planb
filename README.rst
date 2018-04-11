@@ -1,7 +1,9 @@
 This is an experimental QvarnAPI implementation focused on performance.
 
-Everything is build on [API Star](http://www.encode.io/apistar/) web framework,
-using asyncio and Python 3.6. All code is written from scratch.
+Everything is build on `API Star`_ web framework, using asyncio and Python 3.6.
+All code is written from scratch.
+
+.. _API Start: http://www.encode.io/apistar/
 
 Implemented Qvarn API endpoints:
 
@@ -91,9 +93,10 @@ For each Qvarn resource type, three PostgreSQL tables are created:
 Exact searches
 --------------
 
-For EXACT searches PostgreSQL has [GIN
-indexes](https://www.postgresql.org/docs/9.6/static/gin.html). In order to be
-able to use GIN index, resource data is transformed into this:
+For EXACT searches PostgreSQL has `GIN indexes`_. In order to be able to use
+GIN index, resource data is transformed into this:
+
+.. _GIN indexes: https://www.postgresql.org/docs/9.6/static/gin.html
 
 .. code-block:: json
 
