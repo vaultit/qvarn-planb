@@ -3,7 +3,7 @@ This is an experimental QvarnAPI implementation focused on performance.
 Everything is build on `API Star`_ web framework, using asyncio and Python 3.6.
 All code is written from scratch.
 
-.. _API Start: http://www.encode.io/apistar/
+.. _API Star: http://www.encode.io/apistar/
 
 Implemented Qvarn API endpoints:
 
