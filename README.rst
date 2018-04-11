@@ -95,15 +95,15 @@ For EXACT searches PostgreSQL has [GIN
 indexes](https://www.postgresql.org/docs/9.6/static/gin.html). In order to be
 able to use GIN index, resource data is transformed into this:
 
-.. cod-block:: json
+.. code-block:: json
 
   [
-    {'a': 1},
-    {'b': 2},
-    {'b': 3},
-    {'d': 4},
-    {'d': 5},
-    {'f': 6},
+    {"a": 1},
+    {"b": 2},
+    {"b": 3},
+    {"d": 4},
+    {"d": 5},
+    {"f": 6},
   ]
 
 Whith this structure, we can run any EXACT search with a single condition:
@@ -126,9 +126,9 @@ table is transformed like this:
 
 .. code-block:: json
 
-  {'a': 1, 'b': 2, 'd': 5, 'f': 6}
+  {"a": 1, "b": 2, "d": 5, "f": 6}
 
-  {        'b': 3, 'd': 4}
+  {        "b": 3, "d": 4}
 
 Here resource data tree is traversed in breadth-first order and all non
 repeated keys are witen to ``__aux`` table as separate row.
