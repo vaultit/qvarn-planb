@@ -5,7 +5,7 @@ All code is written from scratch.
 
 .. _API Star: http://www.encode.io/apistar/
 
-Implemented Qvarn API endpoints:
+Implemented Qvarn API endpoints::
 
     GET    /version
     GET    /{resource_type}
