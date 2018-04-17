@@ -16,6 +16,8 @@ Implemented Qvarn API endpoints:
 - ``DELETE /{resource_type}/{resource_id}``
 - ``GET    /{resource_type}/{resource_id}/{subpath}``
 - ``PUT    /{resource_type}/{resource_id}/{subpath}``
+- ``GET    /{resource_type}/{resource_id}/{file}``
+- ``PUT    /{resource_type}/{resource_id}/{file}``
 
 Authorization is implemented, but endpoint handlers are not using it yet.
 
