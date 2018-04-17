@@ -29,3 +29,15 @@ test: env
 .PHONY: dist
 dist: env/bin/pip
 	env/bin/python setup.py sdist bdist_wheel
+
+.PHONY: postgres
+postgres:
+	docker run \
+	  --rm \
+	  --detach \
+	  --name pg96 \
+	  --publish 5432:5432 \
+	  -e POSTGRES_USER=qvarn \
+	  -e POSTGRES_PASSWORD=qvarn \
+	  -e POSTGRES_DB=planbtest \
+	  postgres:9.6-alpine

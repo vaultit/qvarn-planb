@@ -4,8 +4,10 @@ import aiohttp
 import pkg_resources as pres
 
 from apistar import http
+from apistar import Response
 from apistar import Settings
 from apistar.types import PathWildcard
+from apistar.parsers import JSONParser
 
 from qvarn.backends import Storage
 from qvarn.backends import ResourceNotFound
@@ -153,7 +155,14 @@ async def resource_id_delete(resource_type, resource_id, storage: Storage):
 
 async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: Storage):
     try:
-        return await storage.get_subpath(resource_type, resource_id, subpath)
+        if storage.is_file(resource_type, subpath):
+            data = await storage.get_file(resource_type, resource_id, subpath)
+            return Response(data['blob'], status=200, content_type=data['content-type'], headers={
+                'Revision': data['revision'],
+            })
+
+        else:
+            return await storage.get_subpath(resource_type, resource_id, subpath)
     except ResourceTypeNotFound:
         raise NotFound({
             'error_code': 'ResourceTypeDoesNotExist',
@@ -168,9 +177,16 @@ async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: 
         })
 
 
-async def resource_id_subpath_put(resource_type, resource_id, subpath, data: http.RequestData, storage: Storage):
+async def resource_id_subpath_put(resource_type, resource_id, subpath, body: http.Body, headers: http.Headers,
+                                  storage: Storage):
     try:
-        return await storage.put_subpath(resource_type, resource_id, subpath, data)
+        if storage.is_file(resource_type, subpath):
+            content_type = headers.get('Content-Type')
+            revision = headers.get('Revision')
+            return await storage.put_file(resource_type, resource_id, subpath, body, revision, content_type)
+        else:
+            data = JSONParser().parse(body)
+            return await storage.put_subpath(resource_type, resource_id, subpath, data)
     except ResourceTypeNotFound:
         raise NotFound({
             'error_code': 'ResourceTypeDoesNotExist',

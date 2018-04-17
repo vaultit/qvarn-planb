@@ -219,6 +219,32 @@ def test_subresource(client):
     assert row == private
 
 
+def test_files(client, storage):
+    storage.wipe_all_data('persons')
+
+    person = {
+        "names": [{"full_name": "James Bond"}],
+    }
+    person = client.post('/persons', json=person).json()
+
+    resp = client.put(f'/persons/{person["id"]}/photo', data=b'image', headers={
+        'content-type': 'image/png',
+        'revision': person['revision'],
+    }).json()
+
+    assert person['revision'] != resp['revision']
+    assert resp == {
+        'id': person['id'],
+        'revision': resp['revision'],
+    }
+
+    person['revision'] = resp['revision']
+    resp = client.get(f'/persons/{person["id"]}/photo')
+    assert resp.content == b'image'
+    assert resp.headers['revision'] == person['revision']
+    assert resp.headers['content-type'] == 'image/png'
+
+
 def test_search_exact(client, storage):
     storage.wipe_all_data('orgs')
 

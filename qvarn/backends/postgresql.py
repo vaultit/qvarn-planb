@@ -11,6 +11,7 @@ import ruamel.yaml as yaml
 import sqlalchemy as sa
 from sqlalchemy.engine import reflection
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import insert
 
 from apistar import Settings
 
@@ -125,7 +126,8 @@ class PostgreSQLStorage(Storage):
         self.metadata = sa.MetaData(engine)
         self.inspector = reflection.Inspector.from_engine(engine)
         self.tables = {}
-        self.aux_tables = collections.defaultdict(dict)
+        self.aux_tables = {}
+        self.files_tables = {}
         self._resources_by_path = {}
         self.schema = {}
 
@@ -188,12 +190,17 @@ class PostgreSQLStorage(Storage):
 
         # Define files table if needed.
         if files:
-            sa.Table(
+            files_table = sa.Table(
                 chop_long_name(resource_type + '__files'), self.metadata,
                 sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE'), index=True),
                 sa.Column('subpath', sa.String(128), nullable=False),
                 sa.Column('blob', sa.LargeBinary()),
+                sa.UniqueConstraint('id', 'subpath', name=self._get_file_unique_idx_name(resource_type))
             )
+            self.files_tables[resource_type] = files_table
+
+    def _get_file_unique_idx_name(self, resource_type):
+        return chop_long_name(resource_type + '__unique_idx')
 
     def _get_resource_type(self, resource_path):
         try:
@@ -404,6 +411,89 @@ class PostgreSQLStorage(Storage):
                     ) % result.rowcount)
 
         return dict(data, revision=new_revision)
+
+    def is_file(self, resource_path, subpath):
+        resource_type = self._get_resource_type(resource_path)
+        return subpath in self.schema[resource_type].get('files', [])
+
+    async def get_file(self, resource_path, row_id, subpath):
+        resource_type = self._get_resource_type(resource_path)
+        table = self._get_table(resource_path)
+        files_table = self.files_tables[resource_type]
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                sa.select([
+                    table.c.revision,
+                    table.c['data_' + subpath],
+                    files_table.c.blob,
+                ]).
+                select_from(
+                    table.join(files_table, sa.and_(
+                        files_table.c.id == table.c.id,
+                        files_table.c.subpath == subpath,
+                    ))
+                ).
+                where(table.c.id == row_id)
+            )
+            row = await result.first()
+        if row:
+            return dict(row['data_' + subpath], revision=row.revision, blob=row.blob)
+        else:
+            raise ResourceNotFound("Resource %s not found." % row_id)
+
+    async def put_file(self, resource_path, row_id, subpath, body, revision, content_type):
+        resource_type = self._get_resource_type(resource_path)
+        table = self._get_table(resource_path)
+        files_table = self.files_tables[resource_type]
+
+        new_revision = get_new_id(resource_type)
+        old_revision = revision
+
+        data = {
+            'content-type': content_type,
+        }
+
+        async with self.pool.acquire() as conn:
+            async with conn.begin():
+                result = await conn.execute(
+                    table.update().
+                    where(table.c.id == row_id).
+                    where(table.c.revision == old_revision).
+                    values({
+                        'revision': new_revision,
+                        'data_' + subpath: data,
+                    })
+                )
+
+                if result.rowcount == 1:
+                    data = {
+                        'id': row_id,
+                        'subpath': subpath,
+                        'blob': body,
+                    }
+                    await conn.execute(
+                        insert(files_table).values(data).
+                        on_conflict_do_update(
+                            constraint=self._get_file_unique_idx_name(resource_type),
+                            set_=data
+                        )
+                    )
+
+                elif result.rowcount == 0:
+                    result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
+                    row = await result.first()
+                    if row is None:
+                        raise ResourceNotFound("Resource %s not found." % row_id)
+                    else:
+                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
+                                            current=row.revision, update=old_revision)
+
+                else:
+                    raise UnexpectedError((
+                        "Update query returned %r rowcount, expected values are 0 or 1. Don't know how to handle that."
+                    ) % result.rowcount)
+
+        return {'id': row_id, 'revision': new_revision}
 
     async def list(self, resource_path):
         table = self._get_table(resource_path)
