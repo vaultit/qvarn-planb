@@ -8,16 +8,16 @@ All code is written from scratch.
 Implemented Qvarn API endpoints::
 
     GET    /version
-    GET    /{resource_type}
-    POST   /{resource_type}
-    GET    /{resource_type}/search/{query}
-    GET    /{resource_type}/{resource_id}
-    PUT    /{resource_type}/{resource_id}
-    DELETE /{resource_type}/{resource_id}
-    GET    /{resource_type}/{resource_id}/{subpath}
-    PUT    /{resource_type}/{resource_id}/{subpath}
-    GET    /{resource_type}/{resource_id}/{file}
-    PUT    /{resource_type}/{resource_id}/{file}
+    GET    /{type}
+    POST   /{type}
+    GET    /{type}/search/{query}
+    GET    /{type}/{id}
+    PUT    /{type}/{id}
+    DELETE /{type}/{id}
+    GET    /{type}/{id}/{subpath}
+    PUT    /{type}/{id}/{subpath}
+    GET    /{type}/{id}/{file}
+    PUT    /{type}/{id}/{file}
 
 Authorization is implemented, but endpoint handlers are not using it yet.
 
