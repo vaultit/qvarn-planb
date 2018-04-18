@@ -28,6 +28,13 @@ def test_version(client):
 
 
 def test_create_get_list_put(client):
+    client.scopes([
+        'uapi_contracts_get',
+        'uapi_contracts_post',
+        'uapi_contracts_id_get',
+        'uapi_contracts_id_put',
+    ])
+
     data = {
         'type': 'contract',
         'contract_type': 'tilaajavastuu_account',
@@ -52,8 +59,8 @@ def test_create_get_list_put(client):
     assert row == data
 
     # list
-    rows = client.get('/contracts').json()
-    ids = {x['id'] for x in rows['resources']}
+    resp = client.get('/contracts').json()
+    ids = {x['id'] for x in resp['resources']}
     assert data['id'] in ids
 
     # put
@@ -70,6 +77,11 @@ def test_create_get_list_put(client):
 
 
 def test_duplicate_names_case(client):
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_id_get',
+    ])
+
     data = {
         'type': 'org',
         'country': 'fi',
@@ -98,6 +110,12 @@ def test_duplicate_names_case(client):
 
 
 def test_wrong_revision(client):
+    client.scopes([
+        'uapi_contracts_post',
+        'uapi_contracts_id_get',
+        'uapi_contracts_id_put',
+    ])
+
     data = {
         'type': 'contract',
         'contract_type': 'original',
@@ -126,6 +144,12 @@ def test_wrong_revision(client):
 
 
 def test_subresource(client):
+    client.scopes([
+        'uapi_persons_post',
+        'uapi_persons_private_id_get',
+        'uapi_persons_private_id_put',
+    ])
+
     person = {
         "names": [
             {
@@ -222,6 +246,12 @@ def test_subresource(client):
 def test_files(client, storage):
     storage.wipe_all_data('persons')
 
+    client.scopes([
+        'uapi_persons_post',
+        'uapi_persons_photo_id_get',
+        'uapi_persons_photo_id_put',
+    ])
+
     person = {
         "names": [{"full_name": "James Bond"}],
     }
@@ -247,6 +277,11 @@ def test_files(client, storage):
 
 def test_search_exact(client, storage):
     storage.wipe_all_data('orgs')
+
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_search_id_get',
+    ])
 
     a = client.post('/orgs', json={
         'names': ['Company 1', 'The Company'],
@@ -281,6 +316,11 @@ def test_search_exact(client, storage):
 def test_search_startswith(client, storage):
     storage.wipe_all_data('orgs')
 
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_search_id_get',
+    ])
+
     a = client.post('/orgs', json={'names': ['abc', 'def']}).json()['id']
     b = client.post('/orgs', json={'names': ['ghj', 'klm']}).json()['id']
 
@@ -290,6 +330,11 @@ def test_search_startswith(client, storage):
 
 def test_search_contains(client, storage):
     storage.wipe_all_data('orgs')
+
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_search_id_get',
+    ])
 
     a = client.post('/orgs', json={'names': ['abc', 'def']}).json()['id']
     b = client.post('/orgs', json={'names': ['ghj', 'klm']}).json()['id']
@@ -302,6 +347,11 @@ def test_search_contains(client, storage):
 def test_search_gte_lte(client, storage):
     storage.wipe_all_data('test')
 
+    client.scopes([
+        'uapi_test_post',
+        'uapi_test_search_id_get',
+    ])
+
     a = client.post('/test', json={'string': '0', 'integer': 1, 'float': 2}).json()['id']
     b = client.post('/test', json={'string': '3', 'integer': 4, 'float': 5}).json()['id']
 
@@ -311,6 +361,12 @@ def test_search_gte_lte(client, storage):
 
 
 def test_missing_resource_type(client):
+    client.scopes([
+        'uapi_invalid_get',
+        'uapi_invalid_post',
+        'uapi_invalid_id_get',
+    ])
+
     assert client.get('/invalid').status_code == 404
     assert client.get('/invalid').json() == {
         'error_code': 'ResourceTypeDoesNotExist',
@@ -332,6 +388,11 @@ def test_missing_resource_type(client):
 def test_search_show(client, storage):
     storage.wipe_all_data('orgs')
 
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_search_id_get',
+    ])
+
     a = client.post('/orgs', json=org('foo', '123')).json()['id']
 
     assert client.get('/orgs/search/show/names').json() == {
@@ -349,6 +410,11 @@ def test_search_show(client, storage):
 
 def test_search_show_all(client, storage):
     storage.wipe_all_data('orgs')
+
+    client.scopes([
+        'uapi_orgs_post',
+        'uapi_orgs_search_id_get',
+    ])
 
     def org(name, gov_org_id):
         return {

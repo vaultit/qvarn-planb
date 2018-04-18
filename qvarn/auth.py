@@ -4,6 +4,8 @@ import jwt
 from apistar import Settings
 from apistar import http
 from apistar.authentication import Authenticated
+from apistar.interfaces import Auth
+from apistar.interfaces import Router
 
 from qvarn.exceptions import Forbidden
 from qvarn.exceptions import Unauthorized
@@ -63,3 +65,19 @@ class BearerAuthentication:
             }, headers=headers)
 
         return Authenticated('user', token=token)
+
+
+class CheckScopes:
+
+    def __init__(self, *scopes_required):
+        assert len(scopes_required) > 0
+        self.scopes_required = set(scopes_required)
+
+    def has_permission(self, auth: Auth, router: Router, path: http.Path, method: http.Method):
+        if not auth.is_authenticated():
+            return False
+
+        _, kwargs = router.lookup(path, method)
+        scopes_required = {scope.format(**kwargs) for scope in self.scopes_required}
+        scopes_given = set(auth.token['scope'].split())
+        return scopes_required <= scopes_given

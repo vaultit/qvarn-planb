@@ -3,6 +3,7 @@ import urllib.parse
 import aiohttp
 import pkg_resources as pres
 
+from apistar import annotate
 from apistar import http
 from apistar import Response
 from apistar import Settings
@@ -15,6 +16,7 @@ from qvarn.backends import ResourceTypeNotFound
 from qvarn.backends import WrongRevision
 from qvarn.exceptions import NotFound
 from qvarn.exceptions import Conflict
+from qvarn.auth import CheckScopes
 
 
 async def version():
@@ -54,6 +56,9 @@ async def auth_token(headers: http.Headers, body: http.Body, settings: Settings)
                 return http.Response(await resp.read(), status=resp.status, content_type=content_type)
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_get')],
+)
 async def resource_get(resource_type, storage: Storage):
     try:
         return {
@@ -69,6 +74,9 @@ async def resource_get(resource_type, storage: Storage):
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_post')],
+)
 async def resource_post(resource_type, data: http.RequestData, storage: Storage):
     try:
         return await storage.create(resource_type, data)
@@ -80,6 +88,9 @@ async def resource_post(resource_type, data: http.RequestData, storage: Storage)
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_id_get')],
+)
 async def resource_id_get(resource_type, resource_id, storage: Storage):
     try:
         return await storage.get(resource_type, resource_id)
@@ -97,6 +108,9 @@ async def resource_id_get(resource_type, resource_id, storage: Storage):
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_id_put')],
+)
 async def resource_id_put(resource_type, resource_id, data: http.RequestData, storage: Storage):
     try:
         return await storage.put(resource_type, resource_id, data)
@@ -125,6 +139,9 @@ async def resource_id_put(resource_type, resource_id, data: http.RequestData, st
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_id_delete')],
+)
 async def resource_id_delete(resource_type, resource_id, storage: Storage):
     try:
         return await storage.delete(resource_type, resource_id)
@@ -153,6 +170,9 @@ async def resource_id_delete(resource_type, resource_id, storage: Storage):
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_{subpath}_id_get')],
+)
 async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: Storage):
     try:
         if storage.is_file(resource_type, subpath):
@@ -177,6 +197,9 @@ async def resource_id_subpath_get(resource_type, resource_id, subpath, storage: 
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_{subpath}_id_put')],
+)
 async def resource_id_subpath_put(resource_type, resource_id, subpath, body: http.Body, headers: http.Headers,
                                   storage: Storage):
     try:
@@ -212,6 +235,9 @@ async def resource_id_subpath_put(resource_type, resource_id, subpath, body: htt
         })
 
 
+@annotate(
+    permissions=[CheckScopes('uapi_{resource_type}_search_id_get')],
+)
 async def resource_search(resource_type, query: PathWildcard, storage: Storage):
     try:
         return {

@@ -19,8 +19,6 @@ Implemented Qvarn API endpoints::
     GET    /{type}/{id}/{file}
     PUT    /{type}/{id}/{file}
 
-Authorization is implemented, but endpoint handlers are not using it yet.
-
 
 How to run it?
 ==============
