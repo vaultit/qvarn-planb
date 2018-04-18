@@ -17,7 +17,8 @@ from apistar.handlers import static_urls
 from uvicorn.run import UvicornServer
 
 from qvarn import backends
-from qvarn import views
+from qvarn.views import resources
+from qvarn.views import notifications
 from qvarn.auth import BearerAuthentication
 from qvarn.commands import token_signing_key
 from qvarn.exceptions import HTTPException
@@ -100,16 +101,24 @@ async def get_app(settings: Settings=None):
         ]
 
     routes += [
-        Route('/version', 'GET', views.version),
-        Route('/auth/token', 'POST', views.auth_token),
-        Route('/{resource_type}', 'GET', views.resource_get),
-        Route('/{resource_type}', 'POST', views.resource_post),
-        Route('/{resource_type}/search/{query}', 'GET', views.resource_search),
-        Route('/{resource_type}/{resource_id}', 'GET', views.resource_id_get),
-        Route('/{resource_type}/{resource_id}', 'PUT', views.resource_id_put),
-        Route('/{resource_type}/{resource_id}', 'DELETE', views.resource_id_delete),
-        Route('/{resource_type}/{resource_id}/{subpath}', 'GET', views.resource_id_subpath_get),
-        Route('/{resource_type}/{resource_id}/{subpath}', 'PUT', views.resource_id_subpath_put),
+        Route('/version', 'GET', resources.version),
+        Route('/auth/token', 'POST', resources.auth_token),
+        Route('/{resource_type}', 'GET', resources.resource_get),
+        Route('/{resource_type}', 'POST', resources.resource_post),
+        Route('/{resource_type}/search/{query}', 'GET', resources.resource_search),
+        Route('/{resource_type}/listeners', 'GET', notifications.listeners_get),
+        Route('/{resource_type}/listeners', 'POST', notifications.listeners_post),
+        Route('/{resource_type}/listeners/{listener_id}', 'PUT', notifications.listeners_id_get),
+        Route('/{resource_type}/listeners/{listener_id}', 'GET', notifications.listeners_id_put),
+        Route('/{resource_type}/listeners/{listener_id}', 'DELETE', notifications.listeners_id_delete),
+        Route('/{resource_type}/listeners/{listener_id}/notifications', 'GET', notifications.notifications_get),
+        Route('/{resource_type}/listeners/{listener_id}/notifications/{notification_id}', 'GET', notifications.notifications_id_get),
+        Route('/{resource_type}/listeners/{listener_id}/notifications/{notification_id}', 'DELETE', notifications.notifications_id_delete),
+        Route('/{resource_type}/{resource_id}', 'GET', resources.resource_id_get),
+        Route('/{resource_type}/{resource_id}', 'PUT', resources.resource_id_put),
+        Route('/{resource_type}/{resource_id}', 'DELETE', resources.resource_id_delete),
+        Route('/{resource_type}/{resource_id}/{subpath}', 'GET', resources.resource_id_subpath_get),
+        Route('/{resource_type}/{resource_id}/{subpath}', 'PUT', resources.resource_id_subpath_put),
     ]
 
     commands = [
