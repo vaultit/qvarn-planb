@@ -55,9 +55,9 @@ Test if it works::
 Database structure
 ==================
 
-Data are stored in PostgreSQL database.
+Data is stored in PostgreSQL database.
 
-In the example about haw data are stored in PostgreSQL I will use following
+In the example about how data is stored in PostgreSQL I will use following
 example resource:
 
 .. code-block:: json
