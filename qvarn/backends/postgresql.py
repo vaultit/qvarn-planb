@@ -11,6 +11,7 @@ import ruamel.yaml as yaml
 import sqlalchemy as sa
 from sqlalchemy.engine import reflection
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert
 
 from apistar import Settings
@@ -158,7 +159,16 @@ class PostgreSQLStorage(Storage):
                             )
                         idx.create()
 
-    def _create_tables(self, schema):
+    def _create_tables(self):
+        listeners_table = sa.Table(
+            'listeners', self.metadata,
+            sa.Column('id', sa.String(46), primary_key=True),
+            sa.Column('revision', sa.String(46)),
+            sa.Column('data', JSONB, nullable=False),
+        )
+        self.tables['listeners'] = listeners_table
+
+    def _create_resource_type_tables(self, schema):
         version = schema['versions'][-1]
         subpaths = version.get('subpaths', {})
         resource_type = schema['type']
@@ -198,6 +208,18 @@ class PostgreSQLStorage(Storage):
                 sa.UniqueConstraint('id', 'subpath', name=self._get_file_unique_idx_name(resource_type))
             )
             self.files_tables[resource_type] = files_table
+
+        changes_table = sa.Table(
+            chop_long_name(resource_type + '__changes'), self.metadata,
+            sa.Column('revision', sa.String(46), primary_key=True),
+            sa.Column('resource_id', sa.String(46)),
+            sa.Column('change', sa.String(16)),
+            sa.Column('user', sa.String(128)),
+            sa.Column('timestamp', sa.DateTime, server_default=sa.func.utcnow()),
+            sa.Column('listeners', ARRAY(sa.String(46))),
+            sa.Column('data', JSONB, nullable=False),
+        )
+        self.tables['notifications'] = notifications_table
 
     def _get_file_unique_idx_name(self, resource_type):
         return chop_long_name(resource_type + '__unique_idx')
@@ -272,10 +294,30 @@ class PostgreSQLStorage(Storage):
 
     def add_resource_type(self, schema):
         self.schema[schema['type']] = schema['versions'][-1]
-        self._create_tables(schema)
+        self._create_tables()
+        self._create_resource_type_tables(schema)
         self._resources_by_path[schema['path'].strip('/')] = schema
 
     def init(self):
+        self.add_resource_type({
+            'type': 'listener',
+            'path': '/listeners',
+            'versions': [
+                {
+                    'version': 'v0',
+                    'prototype': {
+                        'id': '',
+                        'type': '',
+                        'revision': '',
+                        'listen_on_type': '',
+                        'notify_of_new': False,
+                        'listen_on_all': False,
+                        'listen_on': [''],
+                    },
+                },
+            ]
+        })
+
         self.metadata.create_all()
         self._create_indexes()
 
@@ -670,6 +712,87 @@ class PostgreSQLStorage(Storage):
                 conn.execute(table.delete())
                 aux_table = self.aux_tables[resource_type]
                 conn.execute(aux_table.delete())
+
+
+    async def list_listeners(self, resource_path: str):
+        raise NotImplementedError()
+
+    async def create_listener(self, resource_path: str, data: dict):
+        resource_type = self._get_resource_type(resource_path)
+        table = self._get_table('listeners')
+
+        row_id = get_new_id('listener')
+        revision = get_new_id('listener')
+
+        data = {**data, 'listen_on_type': resource_type}
+        data = validated(resource_type, self.schema['listener']['prototype'], data)
+
+        async with self.pool.acquire() as conn:
+            async with conn.begin():
+                await conn.execute(table.insert().values(id=row_id, revision=revision, data=data))
+                await self._update_aux_tables(conn, resource_type, row_id, data)
+
+        return dict(data, id=row_id, revision=revision)
+
+    async def get_listener(self, resource_path: str, listener_id: str):
+        resource_type = self._get_resource_type(resource_path)
+        table = self._get_table('listeners')
+        async with self.pool.acquire() as conn:
+            return [
+                row.id async for row in conn.execute(
+                    sa.select([table.c.id]).where(table.c.data['listen_on_type'] == resource_type)
+                )
+            ]
+
+    async def put_listener(self, resource_path: str, listener_id: str, data: dict):
+        table = self._get_table('listeners')
+
+        resource_type = self._get_resource_type(resource_path)
+        new_revision = get_new_id('listener')
+        old_revision = data.get('revision')
+
+        data = {**data, 'listen_on_type': resource_type}
+        data = validated(resource_type, self.schema[resource_type]['prototype'], data)
+
+        async with self.pool.acquire() as conn:
+            async with conn.begin():
+                result = await conn.execute(
+                    table.update().
+                    where(table.c.id == row_id).
+                    where(table.c.revision == old_revision).
+                    values(revision=new_revision, data=data)
+                )
+
+                if result.rowcount == 0:
+                    result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
+                    row = await result.first()
+                    if row is None:
+                        raise ResourceNotFound("Resource %s not found." % row_id)
+                    else:
+                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
+                                            current=row.revision, update=old_revision)
+
+                elif result.rowcount > 1:
+                    raise UnexpectedError((
+                        "Update query returned %r rowcount, expected values are 0 or 1. Don't know how to handle that."
+                    ) % result.rowcount)
+
+        return dict(data, id=row_id, revision=new_revision)
+
+    async def delete_listener(self, resource_path: str, listener_id: str):
+        table = self._get_table('listeners')
+        with self.engine.begin() as conn:
+            conn.execute(table.delete().where(table.c.id == row_id))
+        return {}
+
+    async def list_notifications(self, resource_path: str, listener_id: str):
+        raise NotImplementedError()
+
+    async def get_notification(self, resource_path: str, listener_id: str):
+        raise NotImplementedError()
+
+    async def delete_notification(self, resource_path: str, listener_id: str):
+        raise NotImplementedError()
 
 
 def settings_to_dsn(settings):
