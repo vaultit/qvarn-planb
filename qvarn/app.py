@@ -72,14 +72,14 @@ async def get_app(settings: Settings=None):
                 'MODULE': 'qvarn.backends.postgresql',
                 'USERNAME': 'qvarn',
                 'PASSWORD': 'qvarn',
-                'HOST': 'postgres',
+                'HOST': 'localhost',
                 'PORT': None,
                 'DBNAME': 'planb',
                 'INITDB': True,
             },
-            'RESOURCE_TYPES_PATH': '/etc/qvarn/resources',
+            'RESOURCE_TYPES_PATH': 'tests/resources',
             'TOKEN_ISSUER': 'https://auth-jsonb.alpha.vaultit.org',
-            'TOKEN_AUDIENCE': 'http://localhost:8080',
+            'TOKEN_AUDIENCE': 'http://localhost:8000',
             'TOKEN_SIGNING_KEY': (
                 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLDDFzdeGRZB1EOCWObzmjT34pLhLrSoU4WGu3u0IDhbaQleTQ6hTDj27DkFg20Q'
                 'ux8PXxcXjxzJXq+ycQDOfDP5ET+/JVeFgPxlX7aQHWyi7g5kY4LNk5AiY6/F1lD/3j4jrdMbhGDfkm44o/ow52q+mU9bnciEeISn1E'
@@ -108,8 +108,8 @@ async def get_app(settings: Settings=None):
         Route('/{resource_type}/search/{query}', 'GET', resources.resource_search),
         Route('/{resource_type}/listeners', 'GET', notifications.listeners_get),
         Route('/{resource_type}/listeners', 'POST', notifications.listeners_post),
-        Route('/{resource_type}/listeners/{listener_id}', 'PUT', notifications.listeners_id_get),
-        Route('/{resource_type}/listeners/{listener_id}', 'GET', notifications.listeners_id_put),
+        Route('/{resource_type}/listeners/{listener_id}', 'PUT', notifications.listeners_id_put),
+        Route('/{resource_type}/listeners/{listener_id}', 'GET', notifications.listeners_id_get),
         Route('/{resource_type}/listeners/{listener_id}', 'DELETE', notifications.listeners_id_delete),
         Route('/{resource_type}/listeners/{listener_id}/notifications', 'GET', notifications.notifications_get),
         Route('/{resource_type}/listeners/{listener_id}/notifications/{notification_id}', 'GET', notifications.notifications_id_get),
@@ -128,7 +128,7 @@ async def get_app(settings: Settings=None):
     components = [
         Component(backends.Storage, init=backends.get_storage),
     ]
-
+    
     return App(routes=routes, commands=commands, components=components, settings=settings)
 
 

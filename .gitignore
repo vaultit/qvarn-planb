@@ -4,3 +4,6 @@
 /.eggs/
 /.pytest_cache/
 /env/
+/.project
+/.pydevproject
+/.settings/
