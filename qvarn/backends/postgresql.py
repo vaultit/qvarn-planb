@@ -6,7 +6,6 @@ import operator
 import os
 import pathlib
 import urllib.parse
-import datetime
 
 import ruamel.yaml as yaml
 import sqlalchemy as sa
@@ -16,7 +15,6 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.functions import FunctionElement
-from sqlalchemy.sql.expression import exists
 from sqlalchemy.types import DateTime
 
 from apistar import Settings
@@ -27,7 +25,6 @@ from qvarn.backends import ResourceTypeNotFound
 from qvarn.backends import WrongRevision
 from qvarn.backends import UnexpectedError
 from qvarn.validation import validated
-from coreschema.schemas import Boolean
 
 
 Index = collections.namedtuple('Index', ('name', 'using', 'table', 'columns'))
@@ -45,7 +42,8 @@ def pg_utcnow(element, compiler, **kw):
 def get_new_id(resource_type, random_field=None):
     type_field = hashlib.sha512(resource_type.encode()).hexdigest()[:4]
     random_field = random_field or os.urandom(16).hex()
-    checksum_field = hashlib.sha512((type_field + random_field).encode()).hexdigest()[:8]
+    checksum_field = hashlib.sha512(
+        (type_field + random_field).encode()).hexdigest()[:8]
     return '{}-{}-{}'.format(type_field, random_field, checksum_field)
 
 
@@ -124,7 +122,6 @@ class Field:
         self.values = values
         self.inlist = inlist
 
-
     def search(self, value, cast=True):
         if isinstance(self.values[0], int):
             value = int(value)
@@ -152,7 +149,6 @@ class PostgreSQLStorage(Storage):
     def _add_index(self, name, table, *columns, using='gin'):
         self.indexes.append(Index(name, using, table, columns))
 
-
     def _create_indexes(self):
         self.inspector = reflection.Inspector.from_engine(self.engine)
         existing_tables = self.inspector.get_table_names()
@@ -161,7 +157,8 @@ class PostgreSQLStorage(Storage):
         indexes = itertools.groupby(indexes, key=sort_key)
         for table, table_indexes in indexes:
             if table in existing_tables:
-                existing_indexes = {x['name'] for x in self.inspector.get_indexes(table)}
+                existing_indexes = {x['name']
+                                    for x in self.inspector.get_indexes(table)}
                 for index in table_indexes:
                     if index.name not in existing_indexes:
                         if index.using == 'gin':
@@ -176,7 +173,6 @@ class PostgreSQLStorage(Storage):
                                 index.using
                             )
                         idx.create()
-
 
     def _create_listener_table(self):
         # Add a global listener table
@@ -199,13 +195,12 @@ class PostgreSQLStorage(Storage):
             ]
         })
 
-
     def _create_resource_type_tables(self, schema):
         version = schema['versions'][-1]
         subpaths = version.get('subpaths', {})
         resource_type = schema['type']
         files = version.get('files', [])
-        
+
         # Define main table
         main_table = sa.Table(
             chop_long_name(resource_type), self.metadata,
@@ -219,20 +214,26 @@ class PostgreSQLStorage(Storage):
         )
         # Add the 'listen_on_type' for the listener table
         if resource_type == 'listener':
-            main_table.append_column(sa.Column('listen_on_type', sa.String(64), nullable=False))
+            main_table.append_column(
+                sa.Column('listen_on_type', sa.String(64), nullable=False))
         self.tables[resource_type] = main_table
-        
+
         # Define gin index for EXACT searches
-        self._add_index(chop_long_name('gin_idx_' + resource_type), main_table.name, main_table.c.search)
+        self._add_index(
+            chop_long_name('gin_idx_' + resource_type),
+            main_table.name,
+            main_table.c.search
+        )
 
         # Define auxiliary tables and gin indexes for all nested lists.
         aux_table = sa.Table(
             chop_long_name(resource_type + '__aux'), self.metadata,
-            sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE'), index=True),
+            sa.Column('id', sa.ForeignKey(main_table.c.id,
+                                          ondelete='CASCADE'), index=True),
             sa.Column('data', JSONB, nullable=False),
         )
         self.aux_tables[resource_type] = aux_table
-        
+
         # Define a change table for mutation logs
         changes_table = sa.Table(
             chop_long_name(resource_type + '__changes'), self.metadata,
@@ -251,37 +252,35 @@ class PostgreSQLStorage(Storage):
         if files:
             files_table = sa.Table(
                 chop_long_name(resource_type + '__files'), self.metadata,
-                sa.Column('id', sa.ForeignKey(main_table.c.id, ondelete='CASCADE'), index=True),
+                sa.Column('id', sa.ForeignKey(main_table.c.id,
+                                              ondelete='CASCADE'), index=True),
                 sa.Column('subpath', sa.String(128), nullable=False),
                 sa.Column('blob', sa.LargeBinary()),
-                sa.UniqueConstraint('id', 'subpath', name=self._get_file_unique_idx_name(resource_type))
+                sa.UniqueConstraint(
+                    'id', 'subpath', name=self._get_file_unique_idx_name(resource_type))
             )
             self.files_tables[resource_type] = files_table
 
     def _get_file_unique_idx_name(self, resource_type):
         return chop_long_name(resource_type + '__unique_idx')
 
-
     def _get_resource_type(self, resource_path):
         try:
             return self._resources_by_path[resource_path]['type']
         except KeyError:
-            raise ResourceTypeNotFound("Resource type %r not found." % resource_path)
-
+            raise ResourceTypeNotFound(
+                "Resource type %r not found." % resource_path)
 
     def _get_table(self, resource_path):
         resource_type = self._get_resource_type(resource_path)
         return self.tables[resource_type]
-    
-    
+
     def _get_changes_table(self, resource_path):
         resource_type = self._get_resource_type(resource_path)
         return self.changes_tables[resource_type]
-    
-    
+
     def _get_listeners_table(self):
         return self._get_table('listeners')
-
 
     def _get_subpaths(self, resource_type):
         files = set(self.schema[resource_type].get('files', []))
@@ -291,21 +290,21 @@ class PostgreSQLStorage(Storage):
             if subpath not in files
         ]
 
-
     def _get_prototype_schema(self, resource_type):
         subpaths = self._get_subpaths(resource_type)
         return get_prototype_schema(
             (self.schema[resource_type]['prototype'],) +
-            tuple(self.schema[resource_type]['subpaths'][subpath]['prototype'] for subpath in subpaths)
+            tuple(self.schema[resource_type]['subpaths']
+                  [subpath]['prototype'] for subpath in subpaths)
         )
-
 
     async def _update_aux_tables(self, conn, resource_type, row_id, create=None):
         # TODO: should be defered
 
         if create is None:
             # Get data from main table and all subpaths.
-            # We need this, because search look for data everywhere including all subpaths.
+            # We need this, because search look for data everywhere including
+            # all subpaths.
             table = self.tables[resource_type]
             subpaths = self._get_subpaths(resource_type)
             result = await conn.execute(sa.select(
@@ -315,15 +314,18 @@ class PostgreSQLStorage(Storage):
             row = await result.first()
             data = (
                 [row.data] +
-                [row['data_' + subpath] for subpath in subpaths if row['data_' + subpath]]
+                [row['data_' + subpath]
+                    for subpath in subpaths if row['data_' + subpath]]
             )
 
-            # Update search field containing data from resource and all subpaths in a convinient shape for searches.
+            # Update search field containing data from resource and all
+            # subpaths in a convinient shape for searches.
             await conn.execute(
                 table.update().
                 where(table.c.id == row_id).
                 values(
-                    search=list(itertools.chain.from_iterable(flatten_for_gin(x) for x in data))
+                    search=list(itertools.chain.from_iterable(
+                        flatten_for_gin(x) for x in data))
                 )
             )
 
@@ -343,17 +345,14 @@ class PostgreSQLStorage(Storage):
             'data': item,
         } for item in flatten_for_lists(data)]))
 
-
     def add_resource_type(self, schema):
         self.schema[schema['type']] = schema['versions'][-1]
         self._create_resource_type_tables(schema)
         self._resources_by_path[schema['path'].strip('/')] = schema
 
-
     def init(self):
         self.metadata.create_all()
         self._create_indexes()
-
 
     async def create(self, resource_path, data):
         resource_type = self._get_resource_type(resource_path)
@@ -365,7 +364,8 @@ class PostgreSQLStorage(Storage):
         change_id = get_new_id(f'{resource_type}__changes')
         revision = get_new_id(resource_type)
 
-        data = validated(resource_type, self.schema[resource_type]['prototype'], data)
+        data = validated(
+            resource_type, self.schema[resource_type]['prototype'], data)
         search = list(flatten_for_gin(data))
 
         async with self.pool.acquire() as conn:
@@ -379,9 +379,11 @@ class PostgreSQLStorage(Storage):
                         sa.and_(
                             listeners.c.listen_on_type == resource_type,
                             sa.or_(
-                                listeners.c.data.op('->')('notify_of_new') == 'true',
+                                listeners.c.data.op(
+                                    '->')('notify_of_new') == 'true',
                                 sa.and_(
-                                    listeners.c.data.op('->')('notify_on_all') == 'true',
+                                    listeners.c.data.op(
+                                        '->')('notify_on_all') == 'true',
                                     sa.or_(
                                         listeners.c.data.op('->')('notify_of_new') == 'true',
                                         listeners.c.data.op('->')('notify_of_new') == None
@@ -391,10 +393,17 @@ class PostgreSQLStorage(Storage):
                         )
                     )
                 )]
-                await conn.execute(changes.insert().values(id=change_id, resource_id=row_id, resource_revision=revision, data=data, change_type='created', user=None, listeners=listener_refs))
-                
-        return dict(data, id=row_id, revision=revision)
+                await conn.execute(changes.insert().values(
+                    id=change_id,
+                    resource_id=row_id,
+                    resource_revision=revision,
+                    data=data,
+                    change_type='created',
+                    user=None,
+                    listeners=listener_refs
+                ))
 
+        return dict(data, id=row_id, revision=revision)
 
     async def get(self, resource_path, row_id):
         table = self._get_table(resource_path)
@@ -410,18 +419,18 @@ class PostgreSQLStorage(Storage):
         else:
             raise ResourceNotFound("Resource %s not found." % row_id)
 
-
     async def put(self, resource_path, row_id, data):
         resource_type = self._get_resource_type(resource_path)
         table = self._get_table(resource_path)
         listeners = self._get_listeners_table()
         changes = self._get_changes_table(resource_path)
-        
+
         change_id = get_new_id(f'{resource_type}__changes')
         new_revision = get_new_id(resource_type)
         old_revision = data.get('revision')
 
-        data = validated(resource_type, self.schema[resource_type]['prototype'], data)
+        data = validated(
+            resource_type, self.schema[resource_type]['prototype'], data)
         search = list(flatten_for_gin(data))
 
         async with self.pool.acquire() as conn:
@@ -448,7 +457,13 @@ class PostgreSQLStorage(Storage):
                             )
                         )
                     )]
-                    await conn.execute(changes.insert().values(id=change_id, resource_id=row_id, resource_revision=new_revision, data=data, change_type='updated', user=None, listeners=listener_refs))
+                    await conn.execute(changes.insert().values(
+                        id=change_id,
+                        resource_id=row_id,
+                        resource_revision=new_revision,
+                        data=data, change_type='updated',
+                        user=None, listeners=listener_refs
+                    ))
 
                 elif result.rowcount == 0:
                     result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
@@ -456,8 +471,10 @@ class PostgreSQLStorage(Storage):
                     if row is None:
                         raise ResourceNotFound("Resource %s not found." % row_id)
                     else:
-                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
-                                            current=row.revision, update=old_revision)
+                        raise WrongRevision(
+                            "Expected revision is %s, got %s." % (row.revision, old_revision),
+                            current=row.revision, update=old_revision
+                        )
 
                 else:
                     raise UnexpectedError((
@@ -466,14 +483,13 @@ class PostgreSQLStorage(Storage):
 
         return dict(data, id=row_id, revision=new_revision)
 
-
     async def delete(self, resource_path, row_id):
         resource_type = self._get_resource_type(resource_path)
         table = self._get_table(resource_path)
         listeners = self._get_listeners_table()
         changes = self._get_changes_table(resource_path)
         aux_table = self.aux_tables[resource_type]
-        
+
         change_id = get_new_id(f'{resource_type}__changes')
 
         async with self.pool.acquire() as conn:
@@ -497,11 +513,18 @@ class PostgreSQLStorage(Storage):
                         )
                     )
                 )]
-                await conn.execute(changes.insert().values(id=change_id, resource_id=row_id, resource_revision=None, data=row.data, change_type='deleted', user=None, listeners=listener_refs))
+                await conn.execute(changes.insert().values(
+                    id=change_id,
+                    resource_id=row_id,
+                    resource_revision=None,
+                    data=row.data,
+                    change_type='deleted',
+                    user=None,
+                    listeners=listener_refs
+                ))
             else:
                 raise ResourceNotFound("Resource %s not found." % row_id)
         return {}
-
 
     async def get_subpath(self, resource_path, row_id, subpath):
         table = self._get_table(resource_path)
@@ -516,7 +539,6 @@ class PostgreSQLStorage(Storage):
         else:
             raise ResourceNotFound("Resource %s not found." % row_id)
 
-
     async def put_subpath(self, resource_path, row_id, subpath, data):
         table = self._get_table(resource_path)
 
@@ -524,7 +546,8 @@ class PostgreSQLStorage(Storage):
         new_revision = get_new_id(resource_type)
         old_revision = data.get('revision')
 
-        data = validated(resource_type, self.schema[resource_type]['subpaths'][subpath]['prototype'], data)
+        data = validated(
+            resource_type, self.schema[resource_type]['subpaths'][subpath]['prototype'], data)
 
         async with self.pool.acquire() as conn:
             async with conn.begin():
@@ -545,7 +568,8 @@ class PostgreSQLStorage(Storage):
                     result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
                     row = await result.first()
                     if row is None:
-                        raise ResourceNotFound("Resource %s not found." % row_id)
+                        raise ResourceNotFound(
+                            "Resource %s not found." % row_id)
                     else:
                         raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
                                             current=row.revision, update=old_revision)
@@ -557,11 +581,9 @@ class PostgreSQLStorage(Storage):
 
         return dict(data, revision=new_revision)
 
-
     def is_file(self, resource_path, subpath):
         resource_type = self._get_resource_type(resource_path)
         return subpath in self.schema[resource_type].get('files', [])
-
 
     async def get_file(self, resource_path, row_id, subpath):
         resource_type = self._get_resource_type(resource_path)
@@ -587,8 +609,7 @@ class PostgreSQLStorage(Storage):
             return dict(row['data_' + subpath], revision=row.revision, blob=row.blob)
         else:
             raise ResourceNotFound("Resource %s not found." % row_id)
-        
-    
+
     async def put_file(self, resource_path, row_id, subpath, body, revision, content_type):
         resource_type = self._get_resource_type(resource_path)
         table = self._get_table(resource_path)
@@ -622,7 +643,8 @@ class PostgreSQLStorage(Storage):
                     await conn.execute(
                         insert(files_table).values(data).
                         on_conflict_do_update(
-                            constraint=self._get_file_unique_idx_name(resource_type),
+                            constraint=self._get_file_unique_idx_name(
+                                resource_type),
                             set_=data
                         )
                     )
@@ -631,7 +653,8 @@ class PostgreSQLStorage(Storage):
                     result = await conn.execute(sa.select([table.c.revision]).where(table.c.id == row_id))
                     row = await result.first()
                     if row is None:
-                        raise ResourceNotFound("Resource %s not found." % row_id)
+                        raise ResourceNotFound(
+                            "Resource %s not found." % row_id)
                     else:
                         raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision),
                                             current=row.revision, update=old_revision)
@@ -642,8 +665,7 @@ class PostgreSQLStorage(Storage):
                     ) % result.rowcount)
 
         return {'id': row_id, 'revision': new_revision}
-    
-    
+
     async def list(self, resource_path):
         table = self._get_table(resource_path)
         async with self.pool.acquire() as conn:
@@ -652,8 +674,7 @@ class PostgreSQLStorage(Storage):
                     sa.select([table.c.id])
                 )
             ]
-          
-    
+
     async def search(self, resource_path, search_path):
         operator_args = {
             'contains': 2,
@@ -680,7 +701,8 @@ class PostgreSQLStorage(Storage):
             try:
                 args = [next(words) for i in range(args_count)]
             except StopIteration:
-                raise Exception("Operator %r requires at least %d arguments." % (operator, args_count))
+                raise Exception(
+                    "Operator %r requires at least %d arguments." % (operator, args_count))
             operators.append((operator, args))
             operator = next(words, None)
 
@@ -770,12 +792,14 @@ class PostgreSQLStorage(Storage):
                 where.append(alias.c.data[key] != value)
 
             else:
-                raise Exception("Operator %r is not yet implemented." % operator)
+                raise Exception(
+                    "Operator %r is not yet implemented." % operator)
 
         if show_all is False and len(show) == 0:
             query = sa.select([table.c.id], distinct=table.c.id)
         else:
-            query = sa.select([table.c.id, table.c.revision, table.c.data], distinct=table.c.id)
+            query = sa.select([table.c.id, table.c.revision,
+                               table.c.data], distinct=table.c.id)
 
         for join in joins:
             query = query.select_from(join)
@@ -807,31 +831,33 @@ class PostgreSQLStorage(Storage):
             if show_all:
                 return [dict(row.data, id=row.id, revision=row.revision) async for row in result]
             elif show:
-                return [dict({field: row.data[field] for field in show if field in row.data}, id=row.id) async for row in result]
+                return [
+                    dict({
+                        field: row.data[field] for field in show if field in row.data
+                    }, id=row.id) async for row in result
+                ]
             else:
                 return [{'id': row.id} async for row in result]
-    
-    
+
     def wipe_all_data(self, *resource_paths):
         """A quick way to wipe all data in specified resource paths, mainly used for tests."""
         with self.engine.begin() as conn:
             for resource_path in resource_paths:
                 resource_type = self._get_resource_type(resource_path)
-                
+
                 aux_table = self.aux_tables[resource_type]
                 conn.execute(aux_table.delete())
-                
+
                 table = self._get_table(resource_path)
                 conn.execute(table.delete())
-                
+
                 change_table = self._get_changes_table(resource_path)
                 conn.execute(change_table.delete())
-    
-    
+
     async def list_listeners(self, resource_path: str):
         resource_type = self._get_resource_type(resource_path)
         listeners = self._get_listeners_table()
-        
+
         async with self.pool.acquire() as conn:
             return [
                 row.id async for row in conn.execute(
@@ -842,36 +868,40 @@ class PostgreSQLStorage(Storage):
                     )
                 )
             ]
-     
-    
+
     async def create_listener(self, resource_path: str, data: dict):
         resource_type = self._get_resource_type(resource_path)
         listener_resource_type = 'listener'
         listeners = self._get_listeners_table()
-        
+
         row_id = get_new_id(listener_resource_type)
         revision = get_new_id(listener_resource_type)
-        
+
         # Add default fields if not specified
         data = {**data, 'type': listener_resource_type}
-        data = validated(resource_type, self.schema[listener_resource_type]['prototype'], data)
-        
+        data = validated(
+            resource_type, self.schema[listener_resource_type]['prototype'], data)
+
         # The API doc says this should be always returned
-        if not 'listen_on' in data:
+        if 'listen_on' not in data:
             data = {**data, 'listen_on': []}
-        
+
         search = list(flatten_for_gin(data))
 
         async with self.pool.acquire() as conn:
             async with conn.begin():
-                await conn.execute(listeners.insert().values(id=row_id, revision=revision, search=search, listen_on_type=resource_type, data=data))
+                await conn.execute(listeners.insert().values(
+                    id=row_id,
+                    revision=revision,
+                    search=search,
+                    listen_on_type=resource_type,
+                    data=data
+                ))
                 await self._update_aux_tables(conn, listener_resource_type, row_id, data)
-        
+
         return dict(data, id=row_id, revision=revision)
-    
-    
+
     async def get_listener(self, resource_path: str, listener_id: str):
-        resource_type = self._get_resource_type(resource_path)
         listeners = self._get_listeners_table()
         async with self.pool.acquire() as conn:
             result = await conn.execute(sa.select([
@@ -885,7 +915,6 @@ class PostgreSQLStorage(Storage):
         else:
             raise ResourceNotFound("Resource %s not found." % listener_id)
 
-
     async def put_listener(self, resource_path: str, listener_id: str, data: dict):
         resource_type = self._get_resource_type(resource_path)
         listener_resource_type = 'listener'
@@ -895,7 +924,8 @@ class PostgreSQLStorage(Storage):
         old_revision = data['revision']
 
         data = {**data, 'type': listener_resource_type}
-        data = validated(resource_type, self.schema[listener_resource_type]['prototype'], data)
+        data = validated(
+            resource_type, self.schema[listener_resource_type]['prototype'], data)
 
         async with self.pool.acquire() as conn:
             async with conn.begin():
@@ -910,9 +940,11 @@ class PostgreSQLStorage(Storage):
                     result = await conn.execute(sa.select([listeners.c.revision]).where(listeners.c.id == listener_id))
                     row = await result.first()
                     if row is None:
-                        raise ResourceNotFound("Resource %s not found." % listener_id)
+                        raise ResourceNotFound(
+                            "Resource %s not found." % listener_id)
                     else:
-                        raise WrongRevision("Expected revision is %s, got %s." % (row.revision, old_revision), current=row.revision, update=old_revision)
+                        raise WrongRevision("Expected revision is %s, got %s." % (
+                            row.revision, old_revision), current=row.revision, update=old_revision)
 
                 elif result.rowcount > 1:
                     raise UnexpectedError((
@@ -920,21 +952,21 @@ class PostgreSQLStorage(Storage):
                     ) % result.rowcount)
 
         return dict(data, id=listener_id, revision=new_revision)
-    
-    
+
     async def delete_listener(self, resource_path: str, listener_id: str):
         listeners = self._get_listeners_table()
         with self.engine.begin() as conn:
-            conn.execute(listeners.delete().where(listeners.c.id == listener_id))
+            conn.execute(listeners.delete().where(
+                listeners.c.id == listener_id))
         return {}
-    
-    
+
     async def list_notifications(self, resource_path: str, listener_id: str):
         listeners = self._get_listeners_table()
         changes = self._get_changes_table(resource_path)
-        
+
         async with self.pool.acquire() as conn:
-            # Check if the listener still exists (As listeners are not removed from the change table)
+            # Check if the listener still exists (As listeners are not removed
+            # from the change table)
             result = await conn.execute(sa.select([listeners.c.id]).where(listeners.c.id == listener_id))
             if await result.first():
                 return [
@@ -947,15 +979,16 @@ class PostgreSQLStorage(Storage):
                     )
                 ]
             else:
-                raise ResourceTypeNotFound("Resource %s not found." % listener_id)
-    
-          
+                raise ResourceTypeNotFound(
+                    "Resource %s not found." % listener_id)
+
     async def get_notification(self, resource_path: str, listener_id: str, notification_id: str):
         listeners = self._get_listeners_table()
         changes = self._get_changes_table(resource_path)
-        
+
         async with self.pool.acquire() as conn:
-            # Check if the listener still exists (As listeners are not removed from the change table)
+            # Check if the listener still exists (As listeners are not removed
+            # from the change table)
             result = await conn.execute(sa.select([listeners.c.id]).where(listeners.c.id == listener_id))
             if await result.first():
                 result = await conn.execute(
@@ -976,7 +1009,9 @@ class PostgreSQLStorage(Storage):
                 if row:
                     return dict(
                         id=row.id,
-                        # NOTE: The API docs say a notification has `type`, `id`, `revision` --- as usual. (See line 1701. Set REVISION now same as ID)
+                        # NOTE: The API docs say a notification has `type`,
+                        # `id`, `revision` --- as usual. (See line 1701. Set
+                        # REVISION now same as ID)
                         revision=row.id,
                         type='notification',
                         resource_id=row.resource_id,
@@ -984,24 +1019,27 @@ class PostgreSQLStorage(Storage):
                         resource_change=row.change_type
                     )
                 else:
-                    raise ResourceNotFound("Resource %s not found." % notification_id)
+                    raise ResourceNotFound(
+                        "Resource %s not found." % notification_id)
             else:
-                raise ResourceNotFound("Resource %s not found." % notification_id)
+                raise ResourceNotFound(
+                    "Resource %s not found." % notification_id)
 
     async def delete_notification(self, resource_path: str, listener_id: str, notification_id: str):
         changes = self._get_changes_table(resource_path)
-        
+
         async with self.pool.acquire() as conn:
             async with conn.begin():
                 await conn.execute(
                     changes.update().where(
                         changes.c.id == notification_id
                     ).values(
-                        listeners=sa.func.array_remove(changes.c.listeners, listener_id)
+                        listeners=sa.func.array_remove(
+                            changes.c.listeners, listener_id)
                     )
                 )
         return {}
-        
+
 
 def settings_to_dsn(settings):
     dsn = 'postgresql://'
@@ -1022,10 +1060,12 @@ async def init_storage(settings: Settings):
     storage = PostgreSQLStorage(engine, pool)
 
     # Get resource definitions
-    resource_types_path = pathlib.Path(settings['QVARN']['RESOURCE_TYPES_PATH'])
+    resource_types_path = pathlib.Path(
+        settings['QVARN']['RESOURCE_TYPES_PATH'])
     if not resource_types_path.exists():
-        raise Exception('RESOURCE_TYPES_PATH not found: ' + settings['QVARN']['RESOURCE_TYPES_PATH'])
-    
+        raise Exception('RESOURCE_TYPES_PATH not found: ' +
+                        settings['QVARN']['RESOURCE_TYPES_PATH'])
+
     # Create global tables
     storage._create_listener_table()
 
@@ -1033,7 +1073,7 @@ async def init_storage(settings: Settings):
     for path in sorted(resource_types_path.glob('*.yaml')):
         schema = yaml.safe_load(path.read_text())
         storage.add_resource_type(schema)
-        
+
     # Init the storage
     if settings['QVARN']['BACKEND']['INITDB']:
         storage.init()
