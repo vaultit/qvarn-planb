@@ -19,10 +19,20 @@ from qvarn.exceptions import Conflict
 from qvarn.auth import CheckScopes
 
 
+def check_resource(resource_type):
+    if resource_type in ('version', 'listeners'):
+        raise NotFound({
+            'error_code': 'ResourceTypeDoesNotExist',
+            'resource_type': f'{resource_type}/listeners',
+            'message': 'Resource type does not exist',
+        })
+
+
 @annotate(
     permissions=[CheckScopes('uapi_{resource_type}_listeners_get')],
 )
 async def listeners_get(resource_type: str, storage: Storage):
+    check_resource(resource_type)
     try:
         return {
             'resources': [
@@ -32,7 +42,7 @@ async def listeners_get(resource_type: str, storage: Storage):
     except ResourceTypeNotFound:
         raise NotFound({
             'error_code': 'ResourceTypeDoesNotExist',
-            'resource_type': resource_type + '/listeners',
+            'resource_type': f'{resource_type}/listeners',
             'message': 'Resource type does not exist',
         })
 
@@ -40,9 +50,16 @@ async def listeners_get(resource_type: str, storage: Storage):
 @annotate(
     permissions=[CheckScopes('uapi_{resource_type}_listeners_post')],
 )
-async def listeners_post(resource_type: str, data: http.RequestData, storage: Storage):
+async def listeners_post(resource_type: str, data: http.RequestData, storage: Storage, request: http.Request):
+    check_resource(resource_type)
     try:
-        return await storage.create_listener(resource_type, data)
+        result = await storage.create_listener(resource_type, data)
+        return Response(
+            result,
+            # TODO: Have not found a way to access/inject the ASGI environment of uvicorn to get the correct HOST/PORT
+            headers={'Location': f'{request.url}/{result["id"]}'},
+            status=201
+            )
     except ResourceTypeNotFound:
         raise NotFound({
             'error_code': 'ResourceTypeDoesNotExist',
@@ -55,6 +72,7 @@ async def listeners_post(resource_type: str, data: http.RequestData, storage: St
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_get')],
 )
 async def listeners_id_get(resource_type: str, listener_id: str, storage: Storage):
+    check_resource(resource_type)
     try:
         return await storage.get_listener(resource_type, listener_id)
     except ResourceTypeNotFound:
@@ -75,6 +93,7 @@ async def listeners_id_get(resource_type: str, listener_id: str, storage: Storag
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_put')],
 )
 async def listeners_id_put(resource_type: str, listener_id: str, data: http.RequestData, storage: Storage):
+    check_resource(resource_type)
     try:
         return await storage.put_listener(resource_type, listener_id, data)
     except ResourceTypeNotFound:
@@ -106,6 +125,7 @@ async def listeners_id_put(resource_type: str, listener_id: str, data: http.Requ
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_delete')],
 )
 async def listeners_id_delete(resource_type: str, listener_id: str, storage: Storage):
+    check_resource(resource_type)
     try:
         return await storage.delete_listener(resource_type, listener_id)
     except ResourceTypeNotFound:
@@ -137,6 +157,7 @@ async def listeners_id_delete(resource_type: str, listener_id: str, storage: Sto
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_notifications_get')],
 )
 async def notifications_get(resource_type: str, listener_id: str, storage: Storage):
+    check_resource(resource_type)
     try:
         return {
             'resources': [
@@ -155,6 +176,7 @@ async def notifications_get(resource_type: str, listener_id: str, storage: Stora
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_notifications_id_get')],
 )
 async def notifications_id_get(resource_type: str, listener_id: str, notification_id: str, storage: Storage):
+    check_resource(resource_type)
     try:
         return await storage.get_notification(resource_type, listener_id, notification_id)
     except ResourceTypeNotFound:
@@ -167,7 +189,7 @@ async def notifications_id_get(resource_type: str, listener_id: str, notificatio
         raise NotFound({
             'error_code': 'ItemDoesNotExist',
             'listener_id': listener_id,
-            'item_id': notificaiton_id,
+            'item_id': notification_id,
             'message': "Item does not exist",
         })
 
@@ -176,6 +198,7 @@ async def notifications_id_get(resource_type: str, listener_id: str, notificatio
     permissions=[CheckScopes('uapi_{resource_type}_listeners_id_notifications_id_delete')],
 )
 async def notifications_id_delete(resource_type, listener_id, notification_id, storage: Storage):
+    check_resource(resource_type)
     try:
         return await storage.delete_notification(resource_type, listener_id, notification_id)
     except ResourceTypeNotFound:

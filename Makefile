@@ -1,8 +1,10 @@
+PYTHON_3.6=python3.6
+
 .PHONY: env
 env: env/.done requirements.txt
 
 env/bin/pip:
-	python3.6 -m venv env
+	$(PYTHON_3.6) -m venv env
 	env/bin/pip install --upgrade pip wheel setuptools
 
 env/.done: env/bin/pip setup.py requirements-dev.txt
@@ -41,3 +43,10 @@ postgres:
 	  -e POSTGRES_PASSWORD=qvarn \
 	  -e POSTGRES_DB=planbtest \
 	  postgres:9.6-alpine
+#	while ! docker exec -it pg96 nc -z localhost 5432; do echo "Waiting for database..." & sleep 1; done
+#	docker exec \
+	  -it pg96 psql \
+	  -U postgres \
+	  -c "CREATE DATABASE planb;" \
+	  -c "GRANT ALL PRIVILEGES ON DATABASE planb TO qvarn;"
+	
