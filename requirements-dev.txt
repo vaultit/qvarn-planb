@@ -4,48 +4,16 @@
 #
 #    pip-compile --no-index --output-file requirements-dev.txt requirements.in requirements-dev.in
 #
-aiohttp==3.1.1
-aiopg==0.13.2
-apistar[asyncio]==0.3.9
 asn1crypto==0.24.0        # via cryptography
-async-timeout==2.0.1      # via aiohttp
-asyncio-redis==0.14.3     # via uvitools
-attrs==17.4.0             # via aiohttp, pytest
-certifi==2018.1.18        # via requests
+attrs==17.4.0             # via pytest
 cffi==1.11.5              # via cryptography
-chardet==3.0.4            # via aiohttp, requests
-coreapi==2.3.3            # via apistar
-coreschema==0.0.4         # via coreapi
 coverage==4.5.1           # via pytest-cov
 cryptography==2.2.2
-gunicorn==19.7.1          # via uvicorn
-httptools==0.0.10         # via uvicorn
-idna-ssl==1.0.1           # via aiohttp
-idna==2.6                 # via cryptography, idna-ssl, requests, yarl
-itypes==1.1.0             # via coreapi
-jinja2==2.10              # via apistar, coreschema
-markupsafe==1.0           # via jinja2
-multidict==4.1.0          # via aiohttp, yarl
+idna==2.6                 # via cryptography
 pluggy==0.6.0             # via pytest
-psycopg2-binary==2.7.4
-psycopg2==2.7.4           # via aiopg
 py==1.5.2                 # via pytest
 pycparser==2.18           # via cffi
-pycryptodome==3.5.1
-pyjwt==1.6.1
 pytest-asyncio==0.8.0
 pytest-cov==2.5.1
 pytest==3.4.2
-requests==2.18.4
-ruamel.yaml==0.15.35
 six==1.11.0               # via cryptography, pytest
-sqlalchemy==1.2.5
-uritemplate==3.0.0        # via coreapi
-urllib3==1.22             # via requests
-uvicorn==0.0.15           # via apistar, uvitools
-uvitools==0.0.4           # via apistar
-uvloop==0.9.1             # via uvicorn
-websockets==4.0.1         # via uvicorn
-werkzeug==0.14.1          # via apistar, uvitools
-whitenoise==3.3.1         # via apistar
-yarl==1.1.1               # via aiohttp
